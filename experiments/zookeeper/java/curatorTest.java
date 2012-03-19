@@ -375,35 +375,6 @@ public class curatorTest {
 						}
 					}
 				}
-				/*if(_currentTest == testStat.CREATE && tmp != 0){
-					msg = "create:"+(double)(tmp - _oldTotal)/_interval*1000;
-					System.out.println(msg);
-					recordAndResubmit(msg, tmp, testStat.CREATE);
-				}
-				
-				if(_currentTest == testStat.SETSINGLE && tmp != 0){
-					msg = "setsingle:"+(double)(tmp - _oldTotal)/_interval*1000;
-					System.out.println(msg);
-					recordAndResubmit(msg, tmp, testStat.SETSINGLE);
-				}
-				
-				if(_currentTest == testStat.SETMUTI && tmp != 0){
-					msg = "setmuti:"+(double)(tmp - _oldTotal)/_interval*1000;
-					System.out.println(msg);
-					recordAndResubmit(msg, tmp, testStat.SETMUTI);
-				}
-				
-				if(_currentTest == testStat.READ && tmp != 0){
-					msg = "read:"+(double)(tmp - _oldTotal)/_interval*1000;
-					System.out.println(msg);
-					recordAndResubmit(msg, tmp, testStat.READ);
-				}
-				
-				if(_currentTest == testStat.DELETE && tmp != 0){
-					msg = "delete:"+(double)(tmp - _oldTotal)/_interval*1000;
-					System.out.println(msg);
-					recordAndResubmit(msg, tmp, testStat.DELETE);
-				}*/
 			}			
 		}, _interval, _interval);	
 		
