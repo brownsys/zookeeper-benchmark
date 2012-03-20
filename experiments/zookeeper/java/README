@@ -1,0 +1,30 @@
+To make the code work, there must be a folder in current path named 'lib' which contains all the .jar files for this test. 
+
+To compile the code, run: 
+javac -Djava.ext.dirs=lib curatorTest.java
+
+After this, to run the test, run like this:
+java -Djava.ext.dirs=lib curatorTest 200 16000 6000 30000 0
+Argument 200 means rate is recorded every 200 ms.
+Argument 16000 and 6000 means that when the number of unfinished requests below 6000, another bunch of requests are submitted such that total number of unfinished requests goes back to 16000.
+Argument 30000 means each test would run for 30 seconds.
+Argument 0 means test would submit asynchronous requests, 1 is for synchronous requests.
+
+All jar files needed in this test:
+guava-11.0.2.jar:
+Google's library providing common utilities, Netflix Curator uses its ConcurrentMap. It can be found at:
+http://code.google.com/p/guava-libraries/
+
+curator-client-1.1.3-SNAPSHOT.jar and curator-framework-1.1.3-SNAPSHOT.jar:
+Netflix Curator libs used in the test, can be found at:
+https://github.com/Netflix/curator
+I didn't find the jar files on this link, only the source code. It needs to be built using gradle.
+
+zookeeper-3.3.3.jar,jline-0.9.94.jar and log4j-1.2.15.jar:
+zookeeper lib and its log jars, can be found at:
+http://zookeeper.apache.org/
+
+slf4j-api-1.6.4.jar and slf4j-log4j12-1.6.4.jar:
+Log jars used by Netflix Curator, can be found at:
+http://www.slf4j.org/
+
