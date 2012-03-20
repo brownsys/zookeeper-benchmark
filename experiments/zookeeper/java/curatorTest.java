@@ -2,6 +2,9 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -14,13 +17,11 @@ import org.apache.zookeeper.KeeperException.NoNodeException;
 import org.apache.zookeeper.data.Stat;
 
 
-import com.google.common.base.Function;
 import com.netflix.curator.framework.CuratorFramework;
 import com.netflix.curator.framework.CuratorFrameworkFactory;
 import com.netflix.curator.framework.api.CuratorEvent;
 import com.netflix.curator.framework.api.CuratorEventType;
 import com.netflix.curator.framework.api.CuratorListener;
-import com.netflix.curator.framework.listen.Listenable;
 import com.netflix.curator.framework.listen.ListenerContainer;
 import com.netflix.curator.retry.RetryNTimes;
 
@@ -40,10 +41,10 @@ public class curatorTest {
 	int _timeCounter;
 	int _deadline;
 	AtomicInteger _curtotalOps;
+	long _lastCpuTime;
+	long _currCpuTime;
+	long _startCpuTime;
 	
-	int _highestN;
-	int _deleteN;
-	int _curset;
 	
 	int _increment;
 	testStat _currentTest;
@@ -70,6 +71,7 @@ public class curatorTest {
 		int countTime;
 		Timer _timer;
 		boolean _syncfin;
+		int _highestN;
 		
 		int getTimeCount(){
 			return countTime;
@@ -89,6 +91,7 @@ public class curatorTest {
 			_id = id;
 			_path = "/client"+id;
 			_timer = new Timer();
+			_highestN = 0;
 		}
 		
 		void setStat(testStat stat){
@@ -101,18 +104,23 @@ public class curatorTest {
 				_client.start();
 			_syncfin = false;
 			
+			count = 0;
+			countTime = 0;	
+			
 			try{
 				Stat stat = _client.checkExists().forPath(_path);
 				if(stat == null){
-					_client.create().forPath(_path, new byte[0]);
+					_client.create().forPath(_path, _data.getBytes());
 				}
 				
-				count = 0;
-				countTime = 0;				
+			
 				if(_stat != testStat.CLEANING){
+					//create the timer
 					_timer.scheduleAtFixedRate(new TimerTask(){
 						@Override
 						public void run() {
+							//this can be used to measure rate of each thread
+							//at this moment, it is not necessary
 							countTime++;
 							if(countTime == _deadline){								
 								this.cancel();
@@ -126,7 +134,9 @@ public class curatorTest {
 							}
 							
 						}
-					}, _interval, _interval);							
+					}, _interval, _interval);	
+					
+					
 					if(_sync){
 						performSync(_stat);
 					}else{
@@ -135,6 +145,7 @@ public class curatorTest {
 						Listener listener = new Listener();
 						listeners.addListener(listener);
 						submitAsync(_attempts, _stat);
+						//blocks until awaken by timer
 						synchronized(_timer){
 							_timer.wait();
 						}
@@ -152,13 +163,15 @@ public class curatorTest {
 				e.printStackTrace();
 			}
 
-			System.err.println(_id+"-i'm done");
+			System.err.println(_id+"-i'm done, reqs:"+count);
 			synchronized(_running){
 				_running.remove(new Integer(_id));
 				if(_running.size() == 0)
 					_running.notify();
 			}
+			
 		}
+		
 		void performSync(testStat type) throws Exception{
 			switch(type){
 			case READ:
@@ -184,11 +197,10 @@ public class curatorTest {
 				for(int i = 0 ;i < _curtotalOps.get();i++){
 					try{
 						_client.setData().
-						forPath(_path+"/"+_curset,new String(_data+i).getBytes());
+						forPath(_path+"/"+(count%_highestN),new String(_data+i).getBytes());
 					}catch(NoNodeException e){
 						
 					}
-					_curset++;
 					count ++;
 					_finishedTotal.incrementAndGet();
 					if(_syncfin)
@@ -197,9 +209,9 @@ public class curatorTest {
 				break;
 			case CREATE:
 				for(int i = 0 ;i < _curtotalOps.get();i++){
-					_client.create().forPath(_path+"/"+_highestN,new byte[0]);
-					_highestN ++;
+					_client.create().forPath(_path+"/"+count,new String(_data+i).getBytes());
 					count ++;
+					_highestN++;
 					_finishedTotal.incrementAndGet();
 					if(_syncfin)
 						break;
@@ -208,11 +220,10 @@ public class curatorTest {
 			case DELETE:
 				for(int i = 0 ;i < _curtotalOps.get();i++){
 					try{
-						_client.delete().forPath(_path+"/"+_deleteN);
+						_client.delete().forPath(_path+"/"+count);
 					}catch(NoNodeException e){
 						
 					}
-					_deleteN ++;
 					count ++;
 					_finishedTotal.incrementAndGet();
 					if(_syncfin)
@@ -226,33 +237,34 @@ public class curatorTest {
 			case READ:
 				for(int i = 0 ;i<n;i++){
 					_client.getData().inBackground().forPath(_path);
+					count++;
 				}
 				break;
 			case SETSINGLE:
 				for(int i = 0 ;i<n;i++){
 					_client.setData().inBackground().
 					forPath(_path,new String(_data+i).getBytes());
+					count++;
 				}	
 				break;
 			case SETMUTI:
 				for(int i = 0 ;i<n;i++){
 					_client.setData().inBackground().
-					forPath(_path+"/"+_curset,new String(_data+i).getBytes());
-					_curset++;
-					if(_curset >= _highestN)
-						_curset = _highestN; 
+					forPath(_path+"/"+(count%_highestN),new String(_data).getBytes());
+					count++;
 				}
 				break;
 			case CREATE:
 				for(int i = 0 ;i<n;i++){
-					_client.create().inBackground().forPath(_path+"/"+_highestN,new byte[0]);
+					_client.create().inBackground().forPath(_path+"/"+count,new String(_data).getBytes());
 					_highestN ++;
+					count++;
 				}	
 				break;
 			case DELETE:
 				for(int i = 0 ;i<n;i++){
-					_client.delete().inBackground().forPath(_path+"/"+_deleteN);
-					_deleteN ++;
+					_client.delete().inBackground().forPath(_path+"/"+count);
+					count++;
 				}	
 				break;				
 			}
@@ -275,7 +287,6 @@ public class curatorTest {
 			@Override
 			public void eventReceived(CuratorFramework arg0, CuratorEvent arg1)
 					throws Exception {
-				count++;
 				_finishedTotal.incrementAndGet();
 			}			
 		}
@@ -330,14 +341,19 @@ public class curatorTest {
 		
 		double time = getTime();
 		System.err.println(stat+" finished, time elapsed(sec):"+time
-				+" operations:"+getTotalOps()+" avg rate:"+getTotalOps()/time);
+				+" operations:"+_finishedTotal.get()+" avg rate:"+_finishedTotal.get()/time);
 	}
+	
 	public void launch(int totaltime, boolean sync) throws InterruptedException{		
 		_timeCounter = 0;
 		_finishedTotal = new AtomicInteger(0);
 		_oldTotal = 0;
 		_deadline = totaltime / _interval;
 		_sync = sync;
+		_lastCpuTime = System.nanoTime();
+		_currCpuTime = _lastCpuTime;
+		_startCpuTime = 0;
+		
 		Timer timer = new Timer();
 		timer.scheduleAtFixedRate(new TimerTask(){
 			@Override
@@ -347,11 +363,23 @@ public class curatorTest {
 					int finished = _finishedTotal.get();
 					if(finished == 0){
 						//this means even the first batch of operations haven't
-						//returned yet
 						return;
 					}
-					String msg = _currentTest+":"+(double)(finished - _oldTotal)/_interval*1000;
-					System.out.println(msg);				
+					if(_startCpuTime == 0){
+						_startCpuTime = System.nanoTime();
+						_lastCpuTime = _startCpuTime;
+						_currCpuTime = _startCpuTime;						
+					}
+					//System.err.println("increment:"+(finished - _oldTotal));
+					_currCpuTime = System.nanoTime();
+					
+					
+					String msg = _currentTest+":"+((double)(_currCpuTime - _startCpuTime)/1000000000)+":"
+					+((double)(finished - _oldTotal)/((double)(_currCpuTime - _lastCpuTime)/1000000000));
+					System.out.println(msg);
+					//displayCpuTime(_lastCpuTime);
+					//displayCpuTime(_currCpuTime);
+					_lastCpuTime = _currCpuTime;
 					
 					try {
 						_bw.write(msg+"\n");
@@ -415,9 +443,6 @@ public class curatorTest {
 		_hosts = hs;
 		_clients = new Client[hs.length];
 		_interval = interval;
-		_highestN = 0;
-		_deleteN = 0;
-		_curset = 0;
 		int avgOps = ops/hs.length;
 		for(int i = 0;i<hs.length;i++){
 			_clients[i] = new Client(hs[i], "/zkTest", avgOps, i);
@@ -460,7 +485,7 @@ public class curatorTest {
 		boolean sync = Integer.parseInt(args[4]) == 0 ? false : true;
 		/*String[] hosts = new String[1];
 		hosts[0] = "localhost:2181";*/
-		System.out.println(interval+"  "+totalnumber+" "+threshold+" "+time+" "+sync);
+		System.err.println(interval+"  "+totalnumber+" "+threshold+" "+time+" "+sync);
 		curatorTest test = new curatorTest(hosts, 
 				interval, totalnumber, threshold);
 		test.launch(time, sync);
