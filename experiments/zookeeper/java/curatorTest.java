@@ -408,6 +408,14 @@ public class curatorTest {
 		
 		
 		/*this is where all tests start*/
+		
+		/*Read requests done done by zookeeper extremely 
+		 * fast compared with write requests. If the time
+		 * interval and threshold are not chosen appropriately, 
+		 * it could happen that when the timer awakes, all requests 
+		 * have already been finished. In this case, the output 
+		 * of read test doesn't reflect the actual rate of 
+		 * read requests. */
 		doTest(testStat.READ);
 
 		doTest(testStat.SETSINGLE);
@@ -416,6 +424,15 @@ public class curatorTest {
 		
 		doTest(testStat.SETMUTI);
 		
+		/*In the test, node creation and deletion tests are 
+		 * done by creating a lot of nodes at first and then 
+		 * deleting them. Since both of these two tests run 
+		 * for a certain time, there is no guarantee that which 
+		 * requests is more than the other. If there are more 
+		 * delete requests than create requests, the extra delete 
+		 * requests would end up not actually deleting anything. 
+		 * Though these requests are sent and processed by 
+		 * zookeeper server anyway, this could still be an issue.*/
 		doTest(testStat.DELETE);
 		
 		System.err.println("tests done cleaning");
