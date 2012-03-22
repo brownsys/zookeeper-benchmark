@@ -11,7 +11,7 @@ if [ -d "$1" ]; then
 fi
 
 cd java
-java -Djava.ext.dirs=lib curatorTest 200 14000 5000 30000 0 | tee $1.out
+java -Djava.ext.dirs=lib curatorTest 200 14000 5000 30000 0 2>&1 | tee $1.out
 
 mv *.dat ..
 mv $1.out ..
