@@ -316,12 +316,16 @@ public class curatorTest {
 		_finishedTotal = new AtomicInteger(0);
 		_oldTotal = 0;
 		_curtotalOps = new AtomicInteger(_totalOps);
+
 		try{
-			_bw = new BufferedWriter(new FileWriter(new File(stat+".csv")));
+			_bw = new BufferedWriter(new FileWriter(new File(stat+".dat")));
 		}catch(IOException e){
 			e.printStackTrace();
 		}
-		
+
+                _startCpuTime = System.nanoTime();
+                _lastCpuTime = _startCpuTime;
+	
 		for(int i = 0;i<_hosts.length;i++){
 			_clients[i].setStat(stat);
 			Thread tmp = new Thread(_clients[i]);			
@@ -350,9 +354,9 @@ public class curatorTest {
 		_oldTotal = 0;
 		_deadline = totaltime / _interval;
 		_sync = sync;
-		_lastCpuTime = System.nanoTime();
+/*		_lastCpuTime = System.nanoTime();
 		_currCpuTime = _lastCpuTime;
-		_startCpuTime = 0;
+		_startCpuTime = 0; */
 		
 		Timer timer = new Timer();
 		timer.scheduleAtFixedRate(new TimerTask(){
@@ -365,24 +369,26 @@ public class curatorTest {
 						//this means even the first batch of operations haven't
 						return;
 					}
-					if(_startCpuTime == 0){
+/*					if(_startCpuTime == 0){
 						_startCpuTime = System.nanoTime();
 						_lastCpuTime = _startCpuTime;
 						_currCpuTime = _startCpuTime;						
-					}
+					} */
 					//System.err.println("increment:"+(finished - _oldTotal));
 					_currCpuTime = System.nanoTime();
 					
 					
-					String msg = _currentTest+":"+((double)(_currCpuTime - _startCpuTime)/1000000000)+":"
-					+((double)(finished - _oldTotal)/((double)(_currCpuTime - _lastCpuTime)/1000000000));
-					System.out.println(msg);
+					String msg = ((double)(_currCpuTime - _startCpuTime)/1000000000.0)+" "
+					+((double)(finished - _oldTotal)/((double)(_currCpuTime - _lastCpuTime)/1000000000.0));
+					// System.out.println(msg);
 					//displayCpuTime(_lastCpuTime);
 					//displayCpuTime(_currCpuTime);
 					_lastCpuTime = _currCpuTime;
 					
 					try {
-						_bw.write(msg+"\n");
+						if (finished - _oldTotal > 0) {
+							_bw.write(msg+"\n");
+						}
 					} catch (IOException e1) {
 						e1.printStackTrace();
 					}
@@ -489,11 +495,11 @@ public class curatorTest {
 			System.out.println("wrong parameters");
 		}
 		String[] hosts = new String[5];
-		hosts[0] = "euc03.cs.brown.edu:2181";
-		hosts[1] = "euc04.cs.brown.edu:2181";
-		hosts[2] = "euc05.cs.brown.edu:2181";
-		hosts[3] = "euc06.cs.brown.edu:2181";
-		hosts[4] = "euc07.cs.brown.edu:2181";
+		hosts[0] = "host1.pane.cs.brown.edu:2181";
+		hosts[1] = "host2.pane.cs.brown.edu:2181";
+		hosts[2] = "host3.pane.cs.brown.edu:2181";
+		hosts[3] = "host4.pane.cs.brown.edu:2181";
+		hosts[4] = "host5.pane.cs.brown.edu:2181";
 		
 		int interval = Integer.parseInt(args[0]);
 		int totalnumber = Integer.parseInt(args[1]);
