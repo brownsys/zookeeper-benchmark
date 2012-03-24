@@ -11,13 +11,17 @@ if [ -d "$1" ]; then
 fi
 
 cd java
-java -Djava.ext.dirs=lib curatorTest 200 14000 5000 30000 0 2>&1 | tee $1.out
+java -Djava.ext.dirs=lib curatorTest 200 20000 8000 30000 0 2>&1 | tee $1.out
 
 mv *.dat ..
 mv $1.out ..
 cd ..
 
 gnuplot all.plot
+for i in `ls -1 *.ps`; do
+	ps2pdf $i
+done
 
 mkdir $1
-mv *.dat *.ps $1.out $1
+mv *.dat *.ps *.pdf $1.out $1
+cp java/curatorTest.java $1
