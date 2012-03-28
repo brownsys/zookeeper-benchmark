@@ -2,18 +2,25 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 
 
 import org.apache.zookeeper.KeeperException.NoNodeException;
+import org.apache.zookeeper.ZooKeeper.States;
 import org.apache.zookeeper.data.Stat;
 
 
@@ -50,10 +57,11 @@ public class curatorTest {
 	testStat _currentTest;
 	
 	String _data;
-	
 	boolean _sync;
 	
 	BufferedWriter _bw;
+	
+	CyclicBarrier _barrier;
 	
 	private enum testStat{
 		READ, SETSINGLE, SETMUTI, CREATE, DELETE, CLEANING, UNDEFINED
@@ -72,6 +80,9 @@ public class curatorTest {
 		Timer _timer;
 		boolean _syncfin;
 		int _highestN;
+		int _highestDeleted;
+		
+		BufferedWriter _records;
 		
 		int getTimeCount(){
 			return countTime;
@@ -92,6 +103,7 @@ public class curatorTest {
 			_path = "/client"+id;
 			_timer = new Timer();
 			_highestN = 0;
+			_highestDeleted = 0;
 		}
 		
 		void setStat(testStat stat){
@@ -102,7 +114,56 @@ public class curatorTest {
 		public void run(){			
 			if(!_client.isStarted())
 				_client.start();
+			
 			_syncfin = false;
+			
+
+			
+			if(_stat == testStat.CLEANING){
+				try {
+					doClean();
+				} catch (Exception e2) {
+					e2.printStackTrace();
+				}
+				synchronized(_running){
+					_running.remove(new Integer(_id));
+					if(_running.size() == 0)
+						_running.notify();
+				}
+				return;
+			}
+			
+			String host = _host.split(":")[0];
+			Socket socket = null;
+			OutputStream os = null;
+			InputStream is = null;	
+			
+			try {
+				socket = new Socket(host, 2181);
+				os = socket.getOutputStream();
+				is = socket.getInputStream();
+				os.write("srst".getBytes());
+				os.flush();
+				byte[] b = new byte[1000];
+				is.read(b);
+				System.err.println(new String(b));
+				is.close();
+				os.close();
+				socket.close();
+			} catch (UnknownHostException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			
+			try {
+				_barrier.await();
+			} catch (InterruptedException e1) {
+				e1.printStackTrace();
+			} catch (BrokenBarrierException e1) {
+				e1.printStackTrace();
+			}
+			
 			
 			count = 0;
 			countTime = 0;	
@@ -112,49 +173,55 @@ public class curatorTest {
 				if(stat == null){
 					_client.create().forPath(_path, _data.getBytes());
 				}
-				
-			
-				if(_stat != testStat.CLEANING){
-					//create the timer
-					_timer.scheduleAtFixedRate(new TimerTask(){
-						@Override
-						public void run() {
-							//this can be used to measure rate of each thread
-							//at this moment, it is not necessary
-							countTime++;
-							if(countTime == _deadline){								
-								this.cancel();
-								if(!_sync){
-									synchronized(_timer){
-										_timer.notify();
-									}
-								}else{
-									_syncfin = true;
-								}
+
+				//create the timer
+				_timer.scheduleAtFixedRate(new TimerTask(){
+					@Override
+					public void run() {
+						//this can be used to measure rate of each thread
+						//at this moment, it is not necessary
+						countTime++;
+						
+						if(countTime == _deadline){								
+							this.cancel();
+							try {
+								_records.close();
+							} catch (IOException e) {
+								e.printStackTrace();
 							}
+							if(!_sync){
+								synchronized(_timer){
+									_timer.notify();
+								}
+							}else{
+								_syncfin = true;
+							}
+						}
 							
-						}
-					}, _interval, _interval);	
-					
-					
-					if(_sync){
-						performSync(_stat);
-					}else{
-						ListenerContainer<CuratorListener> listeners =
-						(ListenerContainer<CuratorListener>)_client.getCuratorListenable();
-						Listener listener = new Listener();
-						listeners.addListener(listener);
-						submitAsync(_attempts, _stat);
-						//blocks until awaken by timer
-						synchronized(_timer){
-							_timer.wait();
-						}
-						listeners.removeListener(listener);
 					}
+				}, _interval, _interval);	
+				
+				try {
+					_records = new BufferedWriter(new FileWriter(new File(_id+"-"+_stat+"_complete.csv")));
+				} catch (IOException e3) {
+					e3.printStackTrace();
 				}
-				else{
-					doClean();
+					
+				if(_sync){
+					performSync(_stat);
+				}else{
+					ListenerContainer<CuratorListener> listeners =
+					(ListenerContainer<CuratorListener>)_client.getCuratorListenable();
+					Listener listener = new Listener();
+					listeners.addListener(listener);
+					submitAsync(_attempts, _stat);
+					//blocks until awaken by timer
+					synchronized(_timer){
+						_timer.wait();
+					}
+					listeners.removeListener(listener);
 				}
+				
 				/*stat = _client.checkExists().forPath(_path);
 				if(stat != null){
 					_client.delete().forPath(_path);
@@ -163,6 +230,25 @@ public class curatorTest {
 				e.printStackTrace();
 			}
 
+			try {
+				socket = new Socket(host, 2181);
+				os = socket.getOutputStream();
+				is = socket.getInputStream();
+				os.write("stat".getBytes());
+				os.flush();
+				byte[] b = new byte[1000];
+				is.read(b);
+				System.err.println(_id+":\n"+new String(b));
+				os.close();
+				is.close();
+				socket.close();
+			} catch (UnknownHostException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+
+			
 			System.err.println(_id+"-i'm done, reqs:"+count);
 			synchronized(_running){
 				_running.remove(new Integer(_id));
@@ -232,43 +318,85 @@ public class curatorTest {
 				break;	
 			}
 		}
-		void submitAsync(int n, testStat type) throws Exception{			
+		void submitAsync(int n, testStat type) throws Exception{		
 			switch(type){
 			case READ:
+				
 				for(int i = 0 ;i<n;i++){
-					_client.getData().inBackground().forPath(_path);
+					
+					double time = ((double)System.nanoTime() - _startCpuTime)/1000000000;
+					String ctx = Double.toString(time);
+					_client.getData().inBackground(ctx).forPath(_path);					
 					count++;
 				}
 				break;
 			case SETSINGLE:
 				for(int i = 0 ;i<n;i++){
-					_client.setData().inBackground().
+
+					double time = ((double)System.nanoTime() - _startCpuTime)/1000000000;
+					String ctx = Double.toString(time);
+					_client.setData().inBackground(ctx).
 					forPath(_path,new String(_data+i).getBytes());
 					count++;
 				}	
 				break;
 			case SETMUTI:
 				for(int i = 0 ;i<n;i++){
-					_client.setData().inBackground().
+					double time = ((double)System.nanoTime() - _startCpuTime)/1000000000;
+					String ctx = Double.toString(time);
+					_client.setData().inBackground(ctx).
 					forPath(_path+"/"+(count%_highestN),new String(_data).getBytes());
 					count++;
 				}
 				break;
 			case CREATE:
 				for(int i = 0 ;i<n;i++){
-					_client.create().inBackground().forPath(_path+"/"+count,new String(_data).getBytes());
+					double time = ((double)System.nanoTime() - _startCpuTime)/1000000000;
+					String ctx = Double.toString(time);
+					_client.create().inBackground(ctx).forPath(_path+"/"+count,new String(_data).getBytes());
 					_highestN ++;
 					count++;
 				}	
 				break;
 			case DELETE:
 				for(int i = 0 ;i<n;i++){
-					_client.delete().inBackground().forPath(_path+"/"+count);
+					double time = ((double)System.nanoTime() - _startCpuTime)/1000000000;
+					String ctx = Double.toString(time);
+					_client.delete().inBackground(ctx).forPath(_path+"/"+count);
+					_highestDeleted ++;
+					if(_highestDeleted >= _highestN){
+						
+						try {
+							String host = _host.split(":")[0];
+							Socket socket = new Socket(host, 2181);
+							OutputStream os = socket.getOutputStream();
+							InputStream is = socket.getInputStream();
+							os.write("stat".getBytes());
+							os.flush();
+							byte[] b = new byte[1000];
+							is.read(b);
+							System.err.println(_id+":\n"+new String(b));
+							os.close();
+							is.close();
+							socket.close();
+						} catch (UnknownHostException e) {
+							e.printStackTrace();
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+						
+						synchronized(_running){
+							_running.remove(new Integer(_id));
+							if(_running.size() == 0)
+								_running.notify();
+						}
+						_timer.cancel();
+						break;
+					}
 					count++;
 				}	
 				break;				
 			}
-			//System.out.println(_id+"submit new "+ n);
 		}
 		
 		void doClean() throws Exception{
@@ -287,11 +415,45 @@ public class curatorTest {
 			@Override
 			public void eventReceived(CuratorFramework arg0, CuratorEvent arg1)
 					throws Exception {
-				_finishedTotal.incrementAndGet();
+							
+
+				switch(arg1.getType()){
+				case GET_DATA:
+					if(_currentTest == testStat.READ){
+						_finishedTotal.incrementAndGet();
+						recordTime(arg1, _records);
+					}
+				case SET_DATA:
+					if(_currentTest == testStat.SETMUTI || _currentTest == testStat.SETSINGLE){
+						_finishedTotal.incrementAndGet();
+						recordTime(arg1, _records);
+					}
+				case DELETE:
+					if(_currentTest == testStat.DELETE){
+						_finishedTotal.incrementAndGet();
+						recordTime(arg1, _records);
+					}
+				case CREATE:
+					if(_currentTest == testStat.CREATE){
+						_finishedTotal.incrementAndGet();
+						recordTime(arg1, _records);
+					}
+				}
+				
+				/*byte[] d = arg1.getData() ;
+				String a = new String(d);
+				System.out.println(">"+a+"<");*/
 			}			
 		}
 	}
 
+	void recordTime(CuratorEvent arg1, BufferedWriter bw) throws IOException{
+		String oldctx = (String)arg1.getContext();
+		double newtime = ((double)System.nanoTime() - _startCpuTime)/1000000000;				
+		String newctx = Double.toString(newtime);				
+		bw.write(arg1.getType()+" "+oldctx+" "+newctx+"\n");
+	}
+	
 	double getTime(){
 		/*return the max time consumed by each thread*/
 		double ret = 0;
@@ -316,47 +478,28 @@ public class curatorTest {
 		_finishedTotal = new AtomicInteger(0);
 		_oldTotal = 0;
 		_curtotalOps = new AtomicInteger(_totalOps);
-
 		try{
-			_bw = new BufferedWriter(new FileWriter(new File(stat+".dat")));
+			_bw = new BufferedWriter(new FileWriter(new File(stat+".csv")));
 		}catch(IOException e){
 			e.printStackTrace();
 		}
-
-                _startCpuTime = System.nanoTime();
-                _lastCpuTime = _startCpuTime;
-	
+		
+		_startCpuTime = System.nanoTime();
+		_lastCpuTime = _startCpuTime;
+		
 		for(int i = 0;i<_hosts.length;i++){
 			_clients[i].setStat(stat);
 			Thread tmp = new Thread(_clients[i]);			
 			_running.put(new Integer(i), tmp);
 			tmp.start();
 		}
-		_currentTest = stat;
-		synchronized(_running){
-			_running.wait();
-		}
-		_currentTest = testStat.UNDEFINED;
-		try {
-			_bw.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
 		
-		double time = getTime();
-		System.err.println(stat+" finished, time elapsed(sec):"+time
-				+" operations:"+_finishedTotal.get()+" avg rate:"+_finishedTotal.get()/time);
-	}
-	
-	public void launch(int totaltime, boolean sync) throws InterruptedException{		
-		_timeCounter = 0;
-		_finishedTotal = new AtomicInteger(0);
-		_oldTotal = 0;
-		_deadline = totaltime / _interval;
-		_sync = sync;
-/*		_lastCpuTime = System.nanoTime();
-		_currCpuTime = _lastCpuTime;
-		_startCpuTime = 0; */
+		_currentTest = stat;
+		try {
+			_barrier.await();
+		} catch (BrokenBarrierException e2) {
+			e2.printStackTrace();
+		}		
 		
 		Timer timer = new Timer();
 		timer.scheduleAtFixedRate(new TimerTask(){
@@ -369,31 +512,30 @@ public class curatorTest {
 						//this means even the first batch of operations haven't
 						return;
 					}
-/*					if(_startCpuTime == 0){
+					/*if(_startCpuTime == 0){
 						_startCpuTime = System.nanoTime();
 						_lastCpuTime = _startCpuTime;
 						_currCpuTime = _startCpuTime;						
-					} */
+					}*/
 					//System.err.println("increment:"+(finished - _oldTotal));
 					_currCpuTime = System.nanoTime();
 					
 					
-					String msg = ((double)(_currCpuTime - _startCpuTime)/1000000000.0)+" "
-					+((double)(finished - _oldTotal)/((double)(_currCpuTime - _lastCpuTime)/1000000000.0));
-					// System.out.println(msg);
-					//displayCpuTime(_lastCpuTime);
-					//displayCpuTime(_currCpuTime);
+					String msg = _currentTest+" "+((double)(_currCpuTime - _startCpuTime)/1000000000)+" "
+					+((double)(finished - _oldTotal)/((double)(_currCpuTime - _lastCpuTime)/1000000000));
+					System.out.println(msg);
 					_lastCpuTime = _currCpuTime;
 					
+					if(_bw != null){
 					try {
-						if (finished - _oldTotal > 0) {
-							_bw.write(msg+"\n");
-						}
+						_bw.write(msg+"\n");
 					} catch (IOException e1) {
 						e1.printStackTrace();
 					}
+					}
 					_oldTotal = finished;
 					if(_curtotalOps.get() - finished <= _lowerbound){
+						_increment = _totalOps - (_curtotalOps.get() - finished);
 						try{
 							int avg = _increment / _clients.length;
 							if(!_sync){
@@ -402,7 +544,7 @@ public class curatorTest {
 								}
 								_curtotalOps.getAndAdd(_increment);
 							}else{
-								_curtotalOps.getAndAdd(1000);
+								_curtotalOps.getAndAdd(10000);
 							}						
 						}catch(Exception e){
 							e.printStackTrace();
@@ -410,8 +552,32 @@ public class curatorTest {
 					}
 				}
 			}			
-		}, _interval, _interval);	
+		}, _interval, _interval);
+
+		synchronized(_running){
+			_running.wait();
+		}
+		_currentTest = testStat.UNDEFINED;
+
+		timer.cancel();
+		try {
+			_bw.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 		
+		
+		double time = getTime();
+		System.err.println(stat+" finished, time elapsed(sec):"+time
+				+" operations:"+_finishedTotal.get()+" avg rate:"+_finishedTotal.get()/time);
+	}
+	
+	public void launch(int totaltime, boolean sync) throws InterruptedException{		
+		_timeCounter = 0;
+		_finishedTotal = new AtomicInteger(0);
+		_oldTotal = 0;
+		_deadline = totaltime / _interval;
+		_sync = sync;
 		
 		/*this is where all tests start*/
 		
@@ -423,7 +589,9 @@ public class curatorTest {
 		 * of read test doesn't reflect the actual rate of 
 		 * read requests. */
 		doTest(testStat.READ);
-
+		
+		doTest(testStat.READ);
+		
 		doTest(testStat.SETSINGLE);
 		
 		doTest(testStat.CREATE);
@@ -452,7 +620,6 @@ public class curatorTest {
 		synchronized(_running){
 			_running.wait();
 		}
-		timer.cancel();
 		System.err.println("all finished");
 	}	
 	
@@ -479,6 +646,8 @@ public class curatorTest {
 		for(int i = 0;i<19;i++){
 			_data += "!!!!!";
 		}
+		_barrier = new CyclicBarrier(_clients.length+1);
+		System.err.println(_barrier.getParties());
 	}	
 	
 	/*
@@ -495,11 +664,11 @@ public class curatorTest {
 			System.out.println("wrong parameters");
 		}
 		String[] hosts = new String[5];
-		hosts[0] = "host1.pane.cs.brown.edu:2181";
-		hosts[1] = "host2.pane.cs.brown.edu:2181";
-		hosts[2] = "host3.pane.cs.brown.edu:2181";
-		hosts[3] = "host4.pane.cs.brown.edu:2181";
-		hosts[4] = "host5.pane.cs.brown.edu:2181";
+		hosts[0] = "euc03.cs.brown.edu:2181";
+		hosts[1] = "euc04.cs.brown.edu:2181";
+		hosts[2] = "euc05.cs.brown.edu:2181";
+		hosts[3] = "euc06.cs.brown.edu:2181";
+		hosts[4] = "euc07.cs.brown.edu:2181";
 		
 		int interval = Integer.parseInt(args[0]);
 		int totalnumber = Integer.parseInt(args[1]);
