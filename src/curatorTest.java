@@ -450,7 +450,7 @@ public class curatorTest {
 					_currCpuTime = System.nanoTime();
 					
 					
-					String msg = _currentTest+" "+((double)(_currCpuTime - _startCpuTime)/1000000000.0)+" "
+					String msg = ((double)(_currCpuTime - _startCpuTime)/1000000000.0)+" "
 					+((double)(finished - _oldTotal)/((double)(_currCpuTime - _lastCpuTime)/1000000000.0));
 					// System.out.println(msg);
 					_lastCpuTime = _currCpuTime;
