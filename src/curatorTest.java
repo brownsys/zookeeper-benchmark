@@ -91,6 +91,7 @@ public class curatorTest {
 		int getOpsCount(){
 			return count;
 		}
+
 		Client(String host, String namespace, int attempts, int id) throws IOException {
 			_host = host;
 			_client = CuratorFrameworkFactory.builder()
@@ -109,6 +110,32 @@ public class curatorTest {
 		void setStat(testStat stat){
 			_stat = stat;
 		}
+
+		void zkAdminCommand(String cmd) {
+			String host = _host.split(":")[0];
+			Socket socket = null;
+			OutputStream os = null;
+			InputStream is = null;	
+			
+			try {
+				socket = new Socket(host, 2181);
+				os = socket.getOutputStream();
+				is = socket.getInputStream();
+				os.write(cmd.getBytes());
+				os.flush();
+				byte[] b = new byte[1000];
+				while (is.read(b) >= 0)
+					System.err.println(_id+" " + cmd + " command:\n" + new String(b));
+				System.err.println(_id+" " + cmd + " command: done.");
+				is.close();
+				os.close();
+				socket.close();
+			} catch (UnknownHostException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 		
 		@Override
 		public void run(){			
@@ -116,8 +143,6 @@ public class curatorTest {
 				_client.start();
 			
 			_syncfin = false;
-			
-
 			
 			if(_stat == testStat.CLEANING){
 				try {
@@ -133,28 +158,7 @@ public class curatorTest {
 				return;
 			}
 			
-			String host = _host.split(":")[0];
-			Socket socket = null;
-			OutputStream os = null;
-			InputStream is = null;	
-			
-			try {
-				socket = new Socket(host, 2181);
-				os = socket.getOutputStream();
-				is = socket.getInputStream();
-				os.write("srst".getBytes());
-				os.flush();
-				byte[] b = new byte[1000];
-				is.read(b);
-				System.err.println(new String(b));
-				is.close();
-				os.close();
-				socket.close();
-			} catch (UnknownHostException e) {
-				e.printStackTrace();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			zkAdminCommand("srst");
 			
 			try {
 				_barrier.await();
@@ -184,11 +188,6 @@ public class curatorTest {
 						
 						if(countTime == _deadline){								
 							this.cancel();
-							try {
-								_records.close();
-							} catch (IOException e) {
-								e.printStackTrace();
-							}
 							if(!_sync){
 								synchronized(_timer){
 									_timer.notify();
@@ -202,7 +201,7 @@ public class curatorTest {
 				}, _interval, _interval);	
 				
 				try {
-					_records = new BufferedWriter(new FileWriter(new File(_id+"-"+_stat+"_complete.csv")));
+					_records = new BufferedWriter(new FileWriter(new File(_id+"-"+_stat+"_timings.dat")));
 				} catch (IOException e3) {
 					e3.printStackTrace();
 				}
@@ -210,8 +209,7 @@ public class curatorTest {
 				if(_sync){
 					performSync(_stat);
 				}else{
-					ListenerContainer<CuratorListener> listeners =
-					(ListenerContainer<CuratorListener>)_client.getCuratorListenable();
+					ListenerContainer<CuratorListener> listeners = (ListenerContainer<CuratorListener>)_client.getCuratorListenable();
 					Listener listener = new Listener();
 					listeners.addListener(listener);
 					submitAsync(_attempts, _stat);
@@ -230,24 +228,13 @@ public class curatorTest {
 				e.printStackTrace();
 			}
 
+			zkAdminCommand("stat");
+
 			try {
-				socket = new Socket(host, 2181);
-				os = socket.getOutputStream();
-				is = socket.getInputStream();
-				os.write("stat".getBytes());
-				os.flush();
-				byte[] b = new byte[1000];
-				is.read(b);
-				System.err.println(_id+":\n"+new String(b));
-				os.close();
-				is.close();
-				socket.close();
-			} catch (UnknownHostException e) {
-				e.printStackTrace();
+				_records.close();
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-
 			
 			System.err.println(_id+"-i'm done, reqs:"+count);
 			synchronized(_running){
@@ -259,143 +246,83 @@ public class curatorTest {
 		}
 		
 		void performSync(testStat type) throws Exception{
-			switch(type){
-			case READ:
-				for(int i = 0 ;i < _curtotalOps.get();i++){
-					_client.getData().forPath(_path);
-					count ++;
-					_finishedTotal.incrementAndGet();
-					if(_syncfin)
+			for(int i = 0 ;i < _curtotalOps.get();i++){
+				double time = ((double)System.nanoTime() - _startCpuTime)/1000000000.0;
+
+				switch(type){
+					case READ:
+						_client.getData().forPath(_path);
 						break;
-				}
-				break;
-			case SETSINGLE:
-				for(int i = 0 ;i < _curtotalOps.get();i++){
-					_client.setData().
-					forPath(_path,new String(_data+i).getBytes());
-					count ++;
-					_finishedTotal.incrementAndGet();
-					if(_syncfin)
+					case SETSINGLE:
+						_client.setData().forPath(_path,new String(_data+i).getBytes());
 						break;
-				}
-				break;
-			case SETMUTI:
-				for(int i = 0 ;i < _curtotalOps.get();i++){
-					try{
-						_client.setData().
-						forPath(_path+"/"+(count%_highestN),new String(_data+i).getBytes());
-					}catch(NoNodeException e){
-						
-					}
-					count ++;
-					_finishedTotal.incrementAndGet();
-					if(_syncfin)
+					case SETMUTI:
+						try{
+							_client.setData().forPath(_path+"/"+(count%_highestN),new String(_data+i).getBytes());
+						}catch(NoNodeException e){
+						}
 						break;
-				}
-				break;
-			case CREATE:
-				for(int i = 0 ;i < _curtotalOps.get();i++){
-					_client.create().forPath(_path+"/"+count,new String(_data+i).getBytes());
-					count ++;
-					_highestN++;
-					_finishedTotal.incrementAndGet();
-					if(_syncfin)
+					case CREATE:
+						_client.create().forPath(_path+"/"+count,new String(_data+i).getBytes());
+						_highestN++;
 						break;
+					case DELETE:
+						try{
+							_client.delete().forPath(_path+"/"+count);
+						}catch(NoNodeException e){
+						}
 				}
-				break;
-			case DELETE:
-				for(int i = 0 ;i < _curtotalOps.get();i++){
-					try{
-						_client.delete().forPath(_path+"/"+count);
-					}catch(NoNodeException e){
-						
-					}
-					count ++;
-					_finishedTotal.incrementAndGet();
-					if(_syncfin)
-						break;
-				}
-				break;	
+
+				recordTimes(new Double(time), _records);
+
+				count ++;
+				_finishedTotal.incrementAndGet();
+				if(_syncfin)
+					break;
 			}
 		}
-		void submitAsync(int n, testStat type) throws Exception{		
-			switch(type){
-			case READ:
-				
-				for(int i = 0 ;i<n;i++){
-					
-					double time = ((double)System.nanoTime() - _startCpuTime)/1000000000;
-					String ctx = Double.toString(time);
-					_client.getData().inBackground(ctx).forPath(_path);					
-					count++;
-				}
-				break;
-			case SETSINGLE:
-				for(int i = 0 ;i<n;i++){
 
-					double time = ((double)System.nanoTime() - _startCpuTime)/1000000000;
-					String ctx = Double.toString(time);
-					_client.setData().inBackground(ctx).
-					forPath(_path,new String(_data+i).getBytes());
-					count++;
-				}	
-				break;
-			case SETMUTI:
-				for(int i = 0 ;i<n;i++){
-					double time = ((double)System.nanoTime() - _startCpuTime)/1000000000;
-					String ctx = Double.toString(time);
-					_client.setData().inBackground(ctx).
-					forPath(_path+"/"+(count%_highestN),new String(_data).getBytes());
-					count++;
-				}
-				break;
-			case CREATE:
-				for(int i = 0 ;i<n;i++){
-					double time = ((double)System.nanoTime() - _startCpuTime)/1000000000;
-					String ctx = Double.toString(time);
-					_client.create().inBackground(ctx).forPath(_path+"/"+count,new String(_data).getBytes());
-					_highestN ++;
-					count++;
-				}	
-				break;
-			case DELETE:
-				for(int i = 0 ;i<n;i++){
-					double time = ((double)System.nanoTime() - _startCpuTime)/1000000000;
-					String ctx = Double.toString(time);
-					_client.delete().inBackground(ctx).forPath(_path+"/"+count);
-					_highestDeleted ++;
-					if(_highestDeleted >= _highestN){
-						
-						try {
-							String host = _host.split(":")[0];
-							Socket socket = new Socket(host, 2181);
-							OutputStream os = socket.getOutputStream();
-							InputStream is = socket.getInputStream();
-							os.write("stat".getBytes());
-							os.flush();
-							byte[] b = new byte[1000];
-							is.read(b);
-							System.err.println(_id+":\n"+new String(b));
-							os.close();
-							is.close();
-							socket.close();
-						} catch (UnknownHostException e) {
-							e.printStackTrace();
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-						
-						synchronized(_running){
-							_running.remove(new Integer(_id));
-							if(_running.size() == 0)
-								_running.notify();
-						}
-						_timer.cancel();
+		void submitAsync(int n, testStat type) throws Exception {
+			for (int i = 0; i < n; i++) {
+				double time = ((double)System.nanoTime() - _startCpuTime)/1000000000.0;
+
+				switch(type){
+					case READ:
+						_client.getData().inBackground(new Double(time)).forPath(_path);
 						break;
-					}
-					count++;
-				}	
-				break;				
+					case SETSINGLE:
+						_client.setData().inBackground(new Double(time)).forPath(_path,
+								new String(_data+i).getBytes());
+						break;
+					case SETMUTI:
+						_client.setData().inBackground(new Double(time)).forPath(_path+"/"+(count%_highestN),
+								new String(_data).getBytes());
+						break;
+					case CREATE:
+						_client.create().inBackground(new Double(time)).forPath(_path+"/"+count,
+								new String(_data).getBytes());
+						_highestN++;
+						break;
+					case DELETE:
+						_client.delete().inBackground(new Double(time)).forPath(_path+"/"+count);
+						_highestDeleted++;
+
+						if(_highestDeleted >= _highestN){
+							zkAdminCommand("stat");
+								
+							synchronized(_running){
+								_running.remove(new Integer(_id));
+								if(_running.size() == 0)
+									_running.notify();
+							}
+
+							_timer.cancel();
+							count++;
+							return;
+						}
+				}
+
+				count++;
 			}
 		}
 		
@@ -415,31 +342,20 @@ public class curatorTest {
 			@Override
 			public void eventReceived(CuratorFramework arg0, CuratorEvent arg1)
 					throws Exception {
+
+				CuratorEventType type = arg1.getType();
+
+				// Ensure that the event we received applies to current test
+				if ((type == CuratorEventType.GET_DATA && _currentTest == testStat.READ) ||
+					(type == CuratorEventType.SET_DATA && _currentTest == testStat.SETMUTI) ||
+					(type == CuratorEventType.SET_DATA && _currentTest == testStat.SETSINGLE) ||
+					(type == CuratorEventType.DELETE && _currentTest == testStat.DELETE) ||
+					(type == CuratorEventType.CREATE && _currentTest == testStat.CREATE)) {
+						_finishedTotal.incrementAndGet();
+						recordEvent(arg1, _records);
+				}
 							
 
-				switch(arg1.getType()){
-				case GET_DATA:
-					if(_currentTest == testStat.READ){
-						_finishedTotal.incrementAndGet();
-						recordTime(arg1, _records);
-					}
-				case SET_DATA:
-					if(_currentTest == testStat.SETMUTI || _currentTest == testStat.SETSINGLE){
-						_finishedTotal.incrementAndGet();
-						recordTime(arg1, _records);
-					}
-				case DELETE:
-					if(_currentTest == testStat.DELETE){
-						_finishedTotal.incrementAndGet();
-						recordTime(arg1, _records);
-					}
-				case CREATE:
-					if(_currentTest == testStat.CREATE){
-						_finishedTotal.incrementAndGet();
-						recordTime(arg1, _records);
-					}
-				}
-				
 				/*byte[] d = arg1.getData() ;
 				String a = new String(d);
 				System.out.println(">"+a+"<");*/
@@ -447,11 +363,15 @@ public class curatorTest {
 		}
 	}
 
-	void recordTime(CuratorEvent arg1, BufferedWriter bw) throws IOException{
-		String oldctx = (String)arg1.getContext();
-		double newtime = ((double)System.nanoTime() - _startCpuTime)/1000000000;				
-		String newctx = Double.toString(newtime);				
-		bw.write(arg1.getType()+" "+oldctx+" "+newctx+"\n");
+	void recordTimes(Double firstTime, BufferedWriter bw) throws IOException{
+		double newtime = ((double)System.nanoTime() - _startCpuTime)/1000000000.0;
+		String newTimeStr = Double.toString(newtime);				
+		bw.write(firstTime.toString()+" "+newTimeStr+"\n");
+	}
+
+	void recordEvent(CuratorEvent arg1, BufferedWriter bw) throws IOException{
+		Double oldctx = (Double)arg1.getContext();
+		recordTimes(oldctx, bw);
 	}
 	
 	double getTime(){
@@ -461,7 +381,7 @@ public class curatorTest {
 			if(ret < _clients[i].getTimeCount())
 				ret = _clients[i].getTimeCount();
 		}
-		return (ret * _interval)/1000 ;
+		return (ret * _interval)/1000.0;
 	}
 	
 	int getTotalOps(){
@@ -479,7 +399,7 @@ public class curatorTest {
 		_oldTotal = 0;
 		_curtotalOps = new AtomicInteger(_totalOps);
 		try{
-			_bw = new BufferedWriter(new FileWriter(new File(stat+".csv")));
+			_bw = new BufferedWriter(new FileWriter(new File(stat+".dat")));
 		}catch(IOException e){
 			e.printStackTrace();
 		}
@@ -521,17 +441,19 @@ public class curatorTest {
 					_currCpuTime = System.nanoTime();
 					
 					
-					String msg = _currentTest+" "+((double)(_currCpuTime - _startCpuTime)/1000000000)+" "
-					+((double)(finished - _oldTotal)/((double)(_currCpuTime - _lastCpuTime)/1000000000));
-					System.out.println(msg);
+					String msg = _currentTest+" "+((double)(_currCpuTime - _startCpuTime)/1000000000.0)+" "
+					+((double)(finished - _oldTotal)/((double)(_currCpuTime - _lastCpuTime)/1000000000.0));
+					// System.out.println(msg);
 					_lastCpuTime = _currCpuTime;
 					
 					if(_bw != null){
-					try {
-						_bw.write(msg+"\n");
-					} catch (IOException e1) {
-						e1.printStackTrace();
-					}
+						try {
+							if (finished - _oldTotal > 0) {
+								_bw.write(msg+"\n");
+							}
+						} catch (IOException e1) {
+							e1.printStackTrace();
+						}
 					}
 					_oldTotal = finished;
 					if(_curtotalOps.get() - finished <= _lowerbound){
@@ -664,11 +586,16 @@ public class curatorTest {
 			System.out.println("wrong parameters");
 		}
 		String[] hosts = new String[5];
-		hosts[0] = "euc03.cs.brown.edu:2181";
+		hosts[0] = "host1.pane.cs.brown.edu:2181";
+		hosts[1] = "host2.pane.cs.brown.edu:2181";
+		hosts[2] = "host3.pane.cs.brown.edu:2181";
+		hosts[3] = "host4.pane.cs.brown.edu:2181";
+		hosts[4] = "host5.pane.cs.brown.edu:2181";
+/*		hosts[0] = "euc03.cs.brown.edu:2181";
 		hosts[1] = "euc04.cs.brown.edu:2181";
 		hosts[2] = "euc05.cs.brown.edu:2181";
 		hosts[3] = "euc06.cs.brown.edu:2181";
-		hosts[4] = "euc07.cs.brown.edu:2181";
+		hosts[4] = "euc07.cs.brown.edu:2181"; */
 		
 		int interval = Integer.parseInt(args[0]);
 		int totalnumber = Integer.parseInt(args[1]);
