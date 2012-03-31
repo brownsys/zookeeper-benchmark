@@ -124,8 +124,13 @@ public class curatorTest {
 				os.write(cmd.getBytes());
 				os.flush();
 				byte[] b = new byte[1000];
-				while (is.read(b) >= 0)
-					System.err.println(_id+" " + cmd + " command:\n" + new String(b));
+				int len = is.read(b);
+
+				while (len >= 0) {
+					System.err.println(_id+" " + cmd + " command:\n" + new String(b, 0, len));
+					len = is.read(b);
+				}
+				
 				System.err.println(_id+" " + cmd + " command: done.");
 				is.close();
 				os.close();
