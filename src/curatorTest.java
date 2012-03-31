@@ -210,7 +210,7 @@ public class curatorTest {
 					performSync(_stat);
 				}else{
 					ListenerContainer<CuratorListener> listeners = (ListenerContainer<CuratorListener>)_client.getCuratorListenable();
-					Listener listener = new Listener();
+					Listener listener = new Listener(this, _stat);
 					listeners.addListener(listener);
 					submitAsync(_attempts, _stat);
 					//blocks until awaken by timer
@@ -339,6 +339,14 @@ public class curatorTest {
 		
 		private class Listener implements CuratorListener{
 
+			Client _client; // client listener listens for
+			testStat _stat;//current test
+
+			Listener(Client client, testStat stat) {
+				_client = client;
+				_stat = stat;
+			}
+
 			@Override
 			public void eventReceived(CuratorFramework arg0, CuratorEvent arg1)
 					throws Exception {
@@ -353,6 +361,7 @@ public class curatorTest {
 					(type == CuratorEventType.CREATE && _currentTest == testStat.CREATE)) {
 						_finishedTotal.incrementAndGet();
 						recordEvent(arg1, _records);
+						_client.submitAsync(1, _stat);
 				}
 							
 
@@ -461,10 +470,10 @@ public class curatorTest {
 						try{
 							int avg = _increment / _clients.length;
 							if(!_sync){
-								for(int i = 0;i<_clients.length;i++){
+/*								for(int i = 0;i<_clients.length;i++){
 									_clients[i].submitAsync(avg, _currentTest);
 								}
-								_curtotalOps.getAndAdd(_increment);
+								_curtotalOps.getAndAdd(_increment); */
 							}else{
 								_curtotalOps.getAndAdd(10000);
 							}						
