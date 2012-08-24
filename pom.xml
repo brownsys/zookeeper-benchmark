@@ -10,12 +10,17 @@
   <name>ZooKeeper Benchmark</name>
   <url>http://github.com/brownsys/zookeeper-benchmark</url>
 
+  <organization>
+    <name>Brown Univ. Computer Science</name>
+    <url>http://systems.cs.brown.edu</url>
+  </organization>
+
   <dependencies>
 
     <dependency>
       <groupId>org.apache.zookeeper</groupId>
       <artifactId>zookeeper</artifactId>
-      <version>3.5.0-pane</version>
+      <version>${ZooKeeperVersion}</version>
     </dependency>
 
     <dependency>
