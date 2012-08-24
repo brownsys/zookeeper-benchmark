@@ -25,7 +25,7 @@ Argument 30000 means each test would run for 30 seconds.
 Argument 0 means test would submit asynchronous requests, 1 is for synchronous 
 requests.
 
-## Nots
+## Notes
 
 1. In the test, node creation and deletion tests are done by creating a lot of 
 nodes at first and then deleting them. Since both of these two tests run for a 
