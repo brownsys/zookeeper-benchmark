@@ -12,7 +12,7 @@ where `<version>` is a ZooKeeper version such as 3.4.3, 3.5.0-pane, etc.
 
 After this, to run the test, run like this:
 
-	java -cp target/zookeeper-benchmark-0.1-SNAPSHOT.jar curatorTest 200 16000 6000 30000 0
+	java -cp target/lib/*:target/* curatorTest 200 16000 6000 30000 0
 
 Argument 200 means rate is recorded every 200 ms.
 
