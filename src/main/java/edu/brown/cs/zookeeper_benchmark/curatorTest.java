@@ -1,3 +1,5 @@
+package edu.brown.cs.zookeeper_benchmark;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
