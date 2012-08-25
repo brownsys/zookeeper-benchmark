@@ -8,7 +8,7 @@ To compile the code, run:
 
 	mvn -DZooKeeperVersion=<version> package
 
-where <version> is a ZooKeeper version such as 3.4.3, 3.5.0-pane, etc.
+where `<version>` is a ZooKeeper version such as 3.4.3, 3.5.0-pane, etc.
 
 After this, to run the test, run like this:
 
@@ -27,14 +27,15 @@ requests.
 
 ## Notes
 
-1. In the test, node creation and deletion tests are done by creating a lot of 
-nodes at first and then deleting them. Since both of these two tests run for a 
-certain time, there is no guarantee that which requests is more than the other. 
+1. In the benchmark, node creation and deletion tests are done by creating a lot
+of nodes at first, and then deleting them. Since each test runs for a fixed 
+amount of time, there are no guarantees about the number of nodes each creates.
+
 If there are more delete requests than create requests, the extra delete 
 requests would end up not actually deleting anything. Though these requests are 
-sent and processed by zookeeper server anyway, this could still be an issue.
+sent and processed by ZooKeeper server anyway; this could be an issue.
 
-2. Read requests done done by zookeeper extremly fast compared with write 
+2. Read requests done done by ZooKeeper extremly quickly compared with write 
 requests. If the time interval and threshold are not chosen appropriately, it 
 could happen that when the timer awakes, all requests have already been 
 finished. In this case, the output of read test doesn't reflect the actual rate 
