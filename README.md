@@ -30,7 +30,6 @@ requests.
 1. In the benchmark, node creation and deletion tests are done by creating a lot
 of nodes at first, and then deleting them. Since each test runs for a fixed 
 amount of time, there are no guarantees about the number of nodes each creates.
-
 If there are more delete requests than create requests, the extra delete 
 requests would end up not actually deleting anything. Though these requests are 
 sent and processed by ZooKeeper server anyway; this could be an issue.
