@@ -23,39 +23,44 @@ import com.netflix.curator.framework.listen.ListenerContainer;
 import com.netflix.curator.retry.RetryNTimes;
 
 import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.testStat;
-import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.BenchmarkClient.Listener;
+//import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.BenchmarkClient.Listener;
 
 class BenchmarkClient implements Runnable{
 	
-	/**
-	 * 
-	 */
-	final ZooKeeperBenchmark curatorTest;
-	String _host;//the host this client is connecting to
-	CuratorFramework _client;//the actual client
-	testStat _stat;//current test
-	int _attempts;
-	String _path;
-	int _id;
-	int count;
-	int countTime;
-	Timer _timer;
-	boolean _syncfin;
-	int _highestN;
-	int _highestDeleted;
+	private ZooKeeperBenchmark _curatorTest;
+	private String _host;//the host this client is connecting to
+	private CuratorFramework _client;//the actual client
+	private testStat _stat;//current test
+	private int _attempts;
+	private String _path;
+	private int _id;
+	private int count;
+	private int countTime;
+	private Timer _timer;
+	private boolean _syncfin;
+	private int _highestN;
+	private int _highestDeleted;
 	
-	BufferedWriter _records;
+	private BufferedWriter _recorder;
 	
-	int getTimeCount(){
+	int getTimeCount() {
 		return countTime;
 	}
 	
 	int getOpsCount(){
 		return count;
 	}
+	
+	ZooKeeperBenchmark getBenchmark() {
+		return _curatorTest;
+	}
 
+	BufferedWriter getRecorder() {
+		return _recorder;
+	}
+	
 	BenchmarkClient(ZooKeeperBenchmark curatorTest, String host, String namespace, int attempts, int id) throws IOException {
-		this.curatorTest = curatorTest;
+		_curatorTest = curatorTest;
 		_host = host;
 		_client = CuratorFrameworkFactory.builder()
 			.connectString(_host).namespace(namespace)
@@ -70,7 +75,7 @@ class BenchmarkClient implements Runnable{
 		_highestDeleted = 0;
 	}
 	
-	void setStat(testStat stat){
+	void setStat(testStat stat) {
 		_stat = stat;
 	}
 
@@ -106,22 +111,23 @@ class BenchmarkClient implements Runnable{
 	}
 	
 	@Override
-	public void run(){			
-		if(!_client.isStarted())
+	public void run() {			
+		if (!_client.isStarted())
 			_client.start();
 		
 		_syncfin = false;
 		
-		if(_stat == testStat.CLEANING){
+		if (_stat == testStat.CLEANING) {
 			try {
 				doClean();
-			} catch (Exception e2) {
-				e2.printStackTrace();
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
-			synchronized(this.curatorTest._running){
-				this.curatorTest._running.remove(new Integer(_id));
-				if(this.curatorTest._running.size() == 0)
-					this.curatorTest._running.notify();
+			
+			synchronized(_curatorTest.getThreadMap()) {
+				_curatorTest.getThreadMap().remove(new Integer(_id));
+				if(_curatorTest.getThreadMap().size() == 0)
+					_curatorTest.getThreadMap().notify();
 			}
 			return;
 		}
@@ -129,7 +135,7 @@ class BenchmarkClient implements Runnable{
 		zkAdminCommand("srst");
 		
 		try {
-			this.curatorTest._barrier.await();
+			_curatorTest.getBarrier().await();
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
 		} catch (BrokenBarrierException e1) {
@@ -140,111 +146,108 @@ class BenchmarkClient implements Runnable{
 		count = 0;
 		countTime = 0;	
 		
-		try{
+		try {
 			Stat stat = _client.checkExists().forPath(_path);
-			if(stat == null){
-				_client.create().forPath(_path, this.curatorTest._data.getBytes());
+			if(stat == null) {
+				_client.create().forPath(_path, _curatorTest.getData().getBytes());
 			}
 
 			//create the timer
-			_timer.scheduleAtFixedRate(new TimerTask(){
+			_timer.scheduleAtFixedRate(new TimerTask() {
 				@Override
 				public void run() {
 					//this can be used to measure rate of each thread
 					//at this moment, it is not necessary
 					countTime++;
 					
-					if(countTime == BenchmarkClient.this.curatorTest._deadline){								
+					if(countTime == BenchmarkClient.this._curatorTest.getDeadline()) {								
 						this.cancel();
-						if(!BenchmarkClient.this.curatorTest._sync){
-							synchronized(_timer){
+						if(!BenchmarkClient.this._curatorTest.isSync()) {
+							synchronized(_timer) {
 								_timer.notify();
 							}
-						}else{
+						} else {
 							_syncfin = true;
 						}
 					}
 						
 				}
-			}, this.curatorTest._interval, this.curatorTest._interval);	
+			}, _curatorTest.getInterval(), _curatorTest.getInterval());	
 			
 			try {
-				_records = new BufferedWriter(new FileWriter(new File(_id+"-"+_stat+"_timings.dat")));
-			} catch (IOException e3) {
-				e3.printStackTrace();
+				_recorder = new BufferedWriter(new FileWriter(new File(_id+"-"+_stat+"_timings.dat")));
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
 				
-			if(this.curatorTest._sync){
+			if (_curatorTest.isSync()) {
 				performSync(_stat);
-			}else{
+			} else {
 				ListenerContainer<CuratorListener> listeners = (ListenerContainer<CuratorListener>)_client.getCuratorListenable();
-				BenchmarkListener listener = new BenchmarkListener(this.curatorTest, this, _stat);
+				BenchmarkListener listener = new BenchmarkListener( this, _stat);
 				listeners.addListener(listener);
 				submitAsync(_attempts, _stat);
 				//blocks until awaken by timer
-				synchronized(_timer){
+				synchronized(_timer) {
 					_timer.wait();
 				}
 				listeners.removeListener(listener);
 			}
-			
-			/*stat = _client.checkExists().forPath(_path);
-			if(stat != null){
-				_client.delete().forPath(_path);
-			}*/
-		}catch(Exception e){
+
+		} catch(Exception e) {
 			e.printStackTrace();
 		}
 
 		zkAdminCommand("stat");
 
 		try {
-			_records.close();
+			_recorder.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 		
 		System.err.println(_id+"-i'm done, reqs:"+count);
-		synchronized(this.curatorTest._running){
-			this.curatorTest._running.remove(new Integer(_id));
-			if(this.curatorTest._running.size() == 0)
-				this.curatorTest._running.notify();
-		}
-		
+		synchronized(_curatorTest.getThreadMap()) {
+			_curatorTest.getThreadMap().remove(new Integer(_id));
+			if (_curatorTest.getThreadMap().size() == 0)
+				_curatorTest.getThreadMap().notify();
+		}		
 	}
 	
-	void performSync(testStat type) throws Exception{
-		for(int i = 0 ;i < this.curatorTest._curtotalOps.get();i++){
-			double time = ((double)System.nanoTime() - this.curatorTest._startCpuTime)/1000000000.0;
+	void performSync(testStat type) throws Exception {
+		for(int i = 0 ;i < _curatorTest.getCurrentTotalOps();i++) {
+			double time = ((double)System.nanoTime() - _curatorTest.getStartTime())/1000000000.0;
 
-			switch(type){
+			switch(type) {
 				case READ:
 					_client.getData().forPath(_path);
 					break;
 				case SETSINGLE:
-					_client.setData().forPath(_path,new String(this.curatorTest._data+i).getBytes());
+					_client.setData().forPath(_path,new String(_curatorTest.getData() + i).getBytes());
 					break;
 				case SETMUTI:
-					try{
-						_client.setData().forPath(_path+"/"+(count%_highestN),new String(this.curatorTest._data+i).getBytes());
-					}catch(NoNodeException e){
+					try {
+						_client.setData().forPath(_path+"/"+(count%_highestN),new String(_curatorTest.getData() + i).getBytes());
+					} catch(NoNodeException e) {
+						e.printStackTrace();
 					}
 					break;
 				case CREATE:
-					_client.create().forPath(_path+"/"+count,new String(this.curatorTest._data+i).getBytes());
+					_client.create().forPath(_path+"/"+count,new String(_curatorTest.getData() + i).getBytes());
 					_highestN++;
 					break;
 				case DELETE:
-					try{
+					try {
 						_client.delete().forPath(_path+"/"+count);
-					}catch(NoNodeException e){
+					} catch(NoNodeException e) {
+						e.printStackTrace();
 					}
 			}
 
-			this.curatorTest.recordTimes(new Double(time), _records);
+			_curatorTest.recordTimes(new Double(time), _recorder);
 
 			count ++;
-			this.curatorTest._finishedTotal.incrementAndGet();
+			_curatorTest.incrementFinished();
 			if(_syncfin)
 				break;
 		}
@@ -252,36 +255,36 @@ class BenchmarkClient implements Runnable{
 
 	void submitAsync(int n, testStat type) throws Exception {
 		for (int i = 0; i < n; i++) {
-			double time = ((double)System.nanoTime() - this.curatorTest._startCpuTime)/1000000000.0;
+			double time = ((double)System.nanoTime() - _curatorTest.getStartTime())/1000000000.0;
 
-			switch(type){
+			switch(type) {
 				case READ:
 					_client.getData().inBackground(new Double(time)).forPath(_path);
 					break;
 				case SETSINGLE:
 					_client.setData().inBackground(new Double(time)).forPath(_path,
-							new String(this.curatorTest._data+i).getBytes());
+							new String(_curatorTest.getData() + i).getBytes());
 					break;
 				case SETMUTI:
 					_client.setData().inBackground(new Double(time)).forPath(_path+"/"+(count%_highestN),
-							new String(this.curatorTest._data).getBytes());
+							new String(_curatorTest.getData()).getBytes());
 					break;
 				case CREATE:
 					_client.create().inBackground(new Double(time)).forPath(_path+"/"+count,
-							new String(this.curatorTest._data).getBytes());
+							new String(_curatorTest.getData()).getBytes());
 					_highestN++;
 					break;
 				case DELETE:
 					_client.delete().inBackground(new Double(time)).forPath(_path+"/"+count);
 					_highestDeleted++;
 
-					if(_highestDeleted >= _highestN){
+					if(_highestDeleted >= _highestN) {
 						zkAdminCommand("stat");
 							
-						synchronized(this.curatorTest._running){
-							this.curatorTest._running.remove(new Integer(_id));
-							if(this.curatorTest._running.size() == 0)
-								this.curatorTest._running.notify();
+						synchronized(_curatorTest.getThreadMap()) {
+							_curatorTest.getThreadMap().remove(new Integer(_id));
+							if(_curatorTest.getThreadMap().size() == 0)
+								_curatorTest.getThreadMap().notify();
 						}
 
 						_timer.cancel();
@@ -294,14 +297,14 @@ class BenchmarkClient implements Runnable{
 		}
 	}
 	
-	void doClean() throws Exception{
+	void doClean() throws Exception {
 		List<String> children;
-		do{
+		do {
 			children = _client.getChildren().forPath(_path);
-			for(String child : children){
+			for(String child : children) {
 				_client.delete().inBackground().forPath(_path+"/"+child);
 			}
 			Thread.sleep(2000);
-		}while(children.size()!=0);
+		} while(children.size()!=0);
 	}
 }
