@@ -26,10 +26,10 @@ public class ZooKeeperBenchmark {
 	private int _deadline;
 	private AtomicInteger _currentTotalOps;
 	private long _lastCpuTime;
-	private long _currCpuTime;
+	private long _currentCpuTime;
 	private long _startCpuTime;
 	private int _increment;
-	private testStat _currentTest;	
+	private TestType _currentTest;	
 	private String _data;
 	private boolean _sync;
 	
@@ -37,11 +37,11 @@ public class ZooKeeperBenchmark {
 	
 	private CyclicBarrier _barrier;
 	
-	enum testStat {
+	enum TestType {
 		READ, SETSINGLE, SETMUTI, CREATE, DELETE, CLEANING, UNDEFINED
 	}
 	
-	testStat getCurrentTest() {
+	TestType getCurrentTest() {
 		return _currentTest;
 	}
 	
@@ -69,8 +69,8 @@ public class ZooKeeperBenchmark {
 		return _sync;
 	}
 	
-	int getCurrentTotalOps() {
-		return _currentTotalOps.get();
+	AtomicInteger getCurrentTotalOps() {
+		return _currentTotalOps;
 	}
 	
 	int getInterval() {
@@ -79,17 +79,6 @@ public class ZooKeeperBenchmark {
 	
 	long getStartTime() {
 		return _startCpuTime;
-	}
-	
-	void recordTimes(Double firstTime, BufferedWriter bw) throws IOException {
-		double newtime = ((double)System.nanoTime() - _startCpuTime)/1000000000.0;
-		String newTimeStr = Double.toString(newtime);				
-		bw.write(firstTime.toString()+" "+newTimeStr+"\n");
-	}
-
-	void recordEvent(CuratorEvent arg1, BufferedWriter bw) throws IOException {
-		Double oldctx = (Double)arg1.getContext();
-		recordTimes(oldctx, bw);
 	}
 	
 	double getTime() {
@@ -111,8 +100,51 @@ public class ZooKeeperBenchmark {
 		return ret;
 	}
 	
+	class ResubmitTimer extends TimerTask {
+		@Override
+		public void run() {
+			_timeCounter ++;
+			if (_currentTest != TestType.UNDEFINED) {
+				int finished = _finishedTotal.get();
+				if (finished == 0) {
+					return;
+				}
+				
+				_currentCpuTime = System.nanoTime();					
+				
+				String msg = ((double)(_currentCpuTime - _startCpuTime)/1000000000.0) + " " + 
+				((double)(finished - _lastfinished)/((double)(_currentCpuTime - _lastCpuTime)/1000000000.0));
+				// System.out.println(msg);
+				_lastCpuTime = _currentCpuTime;
+				
+				if (_bw != null) {
+					try {
+						if (finished - _lastfinished > 0) {
+							_bw.write(msg+"\n");
+						}
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
+				}
+				
+				_lastfinished = finished;
+				if (_currentTotalOps.get() - finished <= _lowerbound) {
+					_increment = _totalOps - (_currentTotalOps.get() - finished);
+					try{							
+						_currentTotalOps.getAndAdd(_increment);
+						int avg = _increment / _clients.length;
+						for (int i = 0;i<_clients.length;i++) {
+							_clients[i].resubmit(avg);
+						}				
+					}catch(Exception e){
+						e.printStackTrace();
+					}
+				}
+			}			
+		}		
+	}
 	
-	public void doTest(testStat stat) throws InterruptedException {
+	public void doTest(TestType stat) throws InterruptedException {
 		_finishedTotal = new AtomicInteger(0);
 		_lastfinished = 0;
 		_currentTotalOps = new AtomicInteger(_totalOps);
@@ -140,57 +172,12 @@ public class ZooKeeperBenchmark {
 		}		
 		
 		Timer timer = new Timer();
-		timer.scheduleAtFixedRate(new TimerTask() {
-			@Override
-			public void run() {
-				_timeCounter ++;
-				if (_currentTest != testStat.UNDEFINED) {
-					int finished = _finishedTotal.get();
-					if (finished == 0) {
-						return;
-					}
-					
-					_currCpuTime = System.nanoTime();					
-					
-					String msg = ((double)(_currCpuTime - _startCpuTime)/1000000000.0) + " " + 
-					((double)(finished - _lastfinished)/((double)(_currCpuTime - _lastCpuTime)/1000000000.0));
-					// System.out.println(msg);
-					_lastCpuTime = _currCpuTime;
-					
-					if (_bw != null) {
-						try {
-							if (finished - _lastfinished > 0) {
-								_bw.write(msg+"\n");
-							}
-						} catch (IOException e1) {
-							e1.printStackTrace();
-						}
-					}
-					_lastfinished = finished;
-					if (_currentTotalOps.get() - finished <= _lowerbound) {
-						_increment = _totalOps - (_currentTotalOps.get() - finished);
-						try{							
-							if (!_sync) {
-								int avg = _increment / _clients.length;
-								for (int i = 0;i<_clients.length;i++) {
-									_clients[i].submitAsync(avg, _currentTest);
-								}
-								_currentTotalOps.getAndAdd(_increment);
-							} else {
-								_currentTotalOps.getAndAdd(10000);
-							}						
-						}catch(Exception e){
-							e.printStackTrace();
-						}
-					}
-				}
-			}			
-		}, _interval, _interval);
+		timer.scheduleAtFixedRate(new ResubmitTimer() , _interval, _interval);
 
 		synchronized(_running) {
 			_running.wait();
 		}
-		_currentTest = testStat.UNDEFINED;
+		_currentTest = TestType.UNDEFINED;
 
 		timer.cancel();
 		try {
@@ -206,10 +193,9 @@ public class ZooKeeperBenchmark {
 				_finishedTotal.get()/time);
 	}
 	
-	public void launch(int totaltime, boolean sync) throws InterruptedException {		
+	public void launch(int totaltime) throws InterruptedException {		
 		_timeCounter = 0;
 		_deadline = totaltime / _interval;
-		_sync = sync;
 		
 		/*this is where all tests start*/
 		
@@ -220,15 +206,15 @@ public class ZooKeeperBenchmark {
 		 * have already been finished. In this case, the output 
 		 * of read test doesn't reflect the actual rate of 
 		 * read requests. */
-		doTest(testStat.READ);
+		doTest(TestType.READ);
 		
-		doTest(testStat.READ);
+		doTest(TestType.READ);
 		
-		doTest(testStat.SETSINGLE);
+		doTest(TestType.SETSINGLE);
 		
-		doTest(testStat.CREATE);
+		doTest(TestType.CREATE);
 		
-		doTest(testStat.SETMUTI);
+		doTest(TestType.SETMUTI);
 		
 		/*In the test, node creation and deletion tests are 
 		 * done by creating a lot of nodes at first and then 
@@ -239,12 +225,12 @@ public class ZooKeeperBenchmark {
 		 * requests would end up not actually deleting anything. 
 		 * Though these requests are sent and processed by 
 		 * zookeeper server anyway, this could still be an issue.*/
-		doTest(testStat.DELETE);
+		doTest(TestType.DELETE);
 		
 		System.err.println("tests done cleaning");
 
 		for(int i = 0;i<_hosts.length;i++) {			
-			_clients[i].setStat(testStat.CLEANING);
+			_clients[i].setStat(TestType.CLEANING);
 			Thread tmp = new Thread(_clients[i]);
 			_running.put(new Integer(i), tmp);
 			tmp.start();
@@ -255,7 +241,7 @@ public class ZooKeeperBenchmark {
 		System.err.println("all finished");
 	}	
 	
-	public ZooKeeperBenchmark(String[] hs, int interval, int ops, int lowerbound) throws IOException {
+	public ZooKeeperBenchmark(String[] hs, int interval, int ops, int lowerbound, boolean sync) throws IOException {
 		/*
 		 * ops here represents the number of total number of ops submitted to server
 		 * say 10000, then if it falls below 2000, submit another 8000 to reach 10000
@@ -265,10 +251,13 @@ public class ZooKeeperBenchmark {
 		_hosts = hs;
 		_clients = new BenchmarkClient[hs.length];
 		_interval = interval;
+		_sync = sync;
 		int avgOps = ops/hs.length;
 		for(int i = 0;i<hs.length;i++){
-			_clients[i] = new BenchmarkClient(this, hs[i], "/zkTest", avgOps, i);
-			
+			if(_sync)
+				_clients[i] = new SyncBenchmarkClient(this, hs[i], "/zkTest", avgOps, i);
+			else
+				_clients[i] = new AsyncBenchmarkClient(this, hs[i], "/zkTest", avgOps, i);			
 		}
 		_running = new HashMap<Integer,Thread>();
 		_deadline = 0;
@@ -316,8 +305,8 @@ public class ZooKeeperBenchmark {
 		hosts[0] = "localhost:2181";*/
 		System.err.println(interval+"  "+totalnumber+" "+threshold+" "+time+" "+sync);
 		ZooKeeperBenchmark test = new ZooKeeperBenchmark(hosts, 
-				interval, totalnumber, threshold);
-		test.launch(time, sync);
+				interval, totalnumber, threshold, sync);
+		test.launch(time);
 		System.exit(0);
 		
 	}

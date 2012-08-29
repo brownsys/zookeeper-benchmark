@@ -5,15 +5,15 @@ import com.netflix.curator.framework.api.CuratorEvent;
 import com.netflix.curator.framework.api.CuratorEventType;
 import com.netflix.curator.framework.api.CuratorListener;
 
-import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.testStat;
+import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.TestType;
 
 class BenchmarkListener implements CuratorListener{
 	private BenchmarkClient _client; // client listener listens for
-	private testStat _stat;//current test
+	private TestType _type;//current test
 
-	BenchmarkListener(BenchmarkClient client, testStat stat) {
+	BenchmarkListener(BenchmarkClient client, TestType type) {
 		_client = client;
-		_stat = stat;
+		_type = type;
 	}
 
 	@Override
@@ -23,14 +23,14 @@ class BenchmarkListener implements CuratorListener{
 		CuratorEventType type = event.getType();
 
 		// Ensure that the event is reply to current test
-		if ((type == CuratorEventType.GET_DATA && _client.getBenchmark().getCurrentTest() == testStat.READ) ||
-			(type == CuratorEventType.SET_DATA && _client.getBenchmark().getCurrentTest() == testStat.SETMUTI) ||
-			(type == CuratorEventType.SET_DATA && _client.getBenchmark().getCurrentTest() == testStat.SETSINGLE) ||
-			(type == CuratorEventType.DELETE && _client.getBenchmark().getCurrentTest() == testStat.DELETE) ||
-			(type == CuratorEventType.CREATE && _client.getBenchmark().getCurrentTest() == testStat.CREATE)) {
+		if ((type == CuratorEventType.GET_DATA && _client.getBenchmark().getCurrentTest() == TestType.READ) ||
+			(type == CuratorEventType.SET_DATA && _client.getBenchmark().getCurrentTest() == TestType.SETMUTI) ||
+			(type == CuratorEventType.SET_DATA && _client.getBenchmark().getCurrentTest() == TestType.SETSINGLE) ||
+			(type == CuratorEventType.DELETE && _client.getBenchmark().getCurrentTest() == TestType.DELETE) ||
+			(type == CuratorEventType.CREATE && _client.getBenchmark().getCurrentTest() == TestType.CREATE)) {
 				_client.getBenchmark().incrementFinished();
-				_client.getBenchmark().recordEvent(event, _client.getRecorder());
-				_client.submitAsync(1, _stat);
+				_client.recordEvent(event);
+				_client.submit(1, _type);
 		}
 	}			
 }
