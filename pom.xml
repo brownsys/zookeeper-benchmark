@@ -79,7 +79,7 @@
             <goals>
               <goal>copy-dependencies</goal>
             </goals>
-            <configuration>   
+            <configuration>
               <outputDirectory>
                 ${project.build.directory}/lib
               </outputDirectory>
