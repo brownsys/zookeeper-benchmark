@@ -14,65 +14,206 @@ import java.util.TimerTask;
 import java.util.concurrent.BrokenBarrierException;
 
 import org.apache.zookeeper.data.Stat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.netflix.curator.framework.CuratorFramework;
+import com.netflix.curator.framework.CuratorFrameworkFactory;
 import com.netflix.curator.framework.api.CuratorEvent;
+import com.netflix.curator.retry.RetryNTimes;
 
 import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.TestType;
 
-public abstract class BenchmarkClient implements Runnable{
-	protected ZooKeeperBenchmark _curatorTest;
-	protected String _host;//the host this client is connecting to
-	protected CuratorFramework _client;//the actual client
-	protected TestType _type;//current test
+public abstract class BenchmarkClient implements Runnable {
+	protected ZooKeeperBenchmark _zkBenchmark;
+	protected String _host; // the host this client is connecting to
+	protected CuratorFramework _client; // the actual client
+	protected TestType _type; // current test
 	protected int _attempts;
 	protected String _path;
 	protected int _id;
-	protected int count;
-	protected int countTime;
+	protected int _count;
+	protected int _countTime;
 	protected Timer _timer;
 	
 	protected int _highestN;
 	protected int _highestDeleted;
 	
-	protected BufferedWriter _recorder;
+	protected BufferedWriter _latenciesFile;
 	
-	int getTimeCount() {
-		return countTime;
+	private static final Logger LOG = LoggerFactory.getLogger(BenchmarkClient.class);
+
+
+	public BenchmarkClient(ZooKeeperBenchmark zkBenchmark, String host, String namespace,
+			int attempts, int id) throws IOException {
+		_zkBenchmark = zkBenchmark;
+		_host = host;
+		_client = CuratorFrameworkFactory.builder()
+			.connectString(_host).namespace(namespace)
+			.retryPolicy(new RetryNTimes(Integer.MAX_VALUE,1000))
+			.connectionTimeoutMs(5000).build();
+		_type = TestType.UNDEFINED;
+		_attempts = attempts;
+		_id = id;
+		_path = "/client"+id;
+		_timer = new Timer();
+		_highestN = 0;
+		_highestDeleted = 0;
 	}
 	
-	int getOpsCount(){
-		return count;
+	@Override
+	public void run() {
+		if (!_client.isStarted())
+			_client.start();		
+		
+		if (_type == TestType.CLEANING) {
+			doCleaning();
+			return;
+		}
+		
+		zkAdminCommand("srst"); // Reset ZK server's statistics
+		
+		// Wait for all clients to be ready
+
+		try {
+			_zkBenchmark.getBarrier().await();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		} catch (BrokenBarrierException e) {
+			e.printStackTrace();
+		}
+		
+		_count = 0;
+		_countTime = 0;
+		
+		// Create a directory to work in
+
+		try {
+			Stat stat = _client.checkExists().forPath(_path);
+			if (stat == null) {
+				_client.create().forPath(_path, _zkBenchmark.getData().getBytes());
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		// Create a timer to check when we're finished. Schedule it to run
+	    // periodically in case we want to record periodic statistics
+
+		int interval = _zkBenchmark.getInterval();
+		_timer.scheduleAtFixedRate(new FinishTimer(), interval, interval);
+
+		try {
+			_latenciesFile = new BufferedWriter(new FileWriter(new File(_id +
+					"-" + _type + "_timings.dat")));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		// Submit the requests!
+
+		submit(_attempts, _type);
+
+		// Test is complete. Print some stats and go home.
+
+		zkAdminCommand("stat");
+
+		try {
+			_latenciesFile.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		System.err.println(_id + "-i'm done, reqs:" + _count);
+
+		synchronized (_zkBenchmark.getThreadMap()) {
+			_zkBenchmark.getThreadMap().remove(new Integer(_id));
+			if (_zkBenchmark.getThreadMap().size() == 0)
+				_zkBenchmark.getThreadMap().notify();
+		}	
+		
 	}
-	
-	ZooKeeperBenchmark getBenchmark() {
-		return _curatorTest;
+
+	class FinishTimer extends TimerTask {
+		@Override
+		public void run() {
+			//this can be used to measure rate of each thread
+			//at this moment, it is not necessary
+			_countTime++;
+
+			if (_countTime == _zkBenchmark.getDeadline()) {
+				this.cancel();
+				finish();
+			}
+		}
 	}
-	
-	void setStat(TestType type) {
-		_type = type;
+
+	void doCleaning() {
+		try {
+			deleteChildren();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		synchronized (_zkBenchmark.getThreadMap()) {
+			_zkBenchmark.getThreadMap().remove(new Integer(_id));
+			if (_zkBenchmark.getThreadMap().size() == 0)
+				_zkBenchmark.getThreadMap().notify();
+		}
 	}
-	
+
+	/* Delete all the child znodes created by this client */
+	void deleteChildren() throws Exception {
+		List<String> children;
+
+		do {
+			children = _client.getChildren().forPath(_path);
+			for (String child : children) {
+				_client.delete().inBackground().forPath(_path + "/" + child);
+			}
+			Thread.sleep(2000);
+		} while (children.size() != 0);
+	}
+
+
+	void recordEvent(CuratorEvent event) {
+		Double submitTime = (Double) event.getContext();
+		recordElapsedInterval(submitTime);
+	}
+
+
+	void recordElapsedInterval(Double startTime) {
+		double endtime = ((double)System.nanoTime() - _zkBenchmark.getStartTime())/1000000000.0;
+
+		try {
+			_latenciesFile.write(startTime.toString() + " " + Double.toString(endtime) + "\n");
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	/* Send a command directly to the ZooKeeper server */
 	void zkAdminCommand(String cmd) {
 		String host = _host.split(":")[0];
 		Socket socket = null;
 		OutputStream os = null;
-		InputStream is = null;	
-		
+		InputStream is = null;
+		byte[] b = new byte[1000];
+
 		try {
 			socket = new Socket(host, 2181);
 			os = socket.getOutputStream();
 			is = socket.getInputStream();
+
 			os.write(cmd.getBytes());
 			os.flush();
-			byte[] b = new byte[1000];
-			int len = is.read(b);
 
+			int len = is.read(b);
 			while (len >= 0) {
 				System.err.println(_id+" " + cmd + " command:\n" + new String(b, 0, len));
 				len = is.read(b);
 			}
-			
+
 			System.err.println(_id+" " + cmd + " command: done.");
 			is.close();
 			os.close();
@@ -84,126 +225,32 @@ public abstract class BenchmarkClient implements Runnable{
 		}
 	}
 
-	void doClean() throws Exception {
-		List<String> children;
-		do {
-			children = _client.getChildren().forPath(_path);
-			for(String child : children) {
-				_client.delete().inBackground().forPath(_path+"/"+child);
-			}
-			Thread.sleep(2000);
-		} while(children.size()!=0);
+	int getTimeCount() {
+		return _countTime;
 	}
 	
-	class FinishTimer extends TimerTask {
-		@Override
-		public void run() {
-			//this can be used to measure rate of each thread
-			//at this moment, it is not necessary
-			countTime++;
-
-			if(countTime == BenchmarkClient.this._curatorTest.getDeadline()) {	
-				this.cancel();
-				finish();
-			}
-		}
+	int getOpsCount(){
+		return _count;
 	}
 	
-	@Override
-	public void run() {
-		if (!_client.isStarted())
-			_client.start();		
-		
-		if (_type == TestType.CLEANING) {
-			try {
-				doClean();
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-			
-			synchronized(_curatorTest.getThreadMap()) {
-				_curatorTest.getThreadMap().remove(new Integer(_id));
-				if(_curatorTest.getThreadMap().size() == 0)
-					_curatorTest.getThreadMap().notify();
-			}
-			return;
-		}
-		
-		zkAdminCommand("srst");
-		
-		try {
-			_curatorTest.getBarrier().await();
-		} catch (InterruptedException e1) {
-			e1.printStackTrace();
-		} catch (BrokenBarrierException e1) {
-			e1.printStackTrace();
-		}
-		
-		count = 0;
-		countTime = 0;	
-		
-		try {
-			Stat stat = _client.checkExists().forPath(_path);
-			if(stat == null) {
-				_client.create().forPath(_path, _curatorTest.getData().getBytes());
-			}
-
-			//create the timer
-			int interval =  _curatorTest.getInterval();
-			_timer.scheduleAtFixedRate(new FinishTimer(), interval, interval);
-			
-			try {
-				_recorder = new BufferedWriter(new FileWriter(new File(_id + 
-						"-" + _type + "_timings.dat")));
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-				
-			submit(_attempts, _type);
-
-		} catch(Exception e) {
-			e.printStackTrace();
-		}
-		
-		zkAdminCommand("stat");
-
-		try {
-			_recorder.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		
-		System.err.println(_id + "-i'm done, reqs:" + count);
-		synchronized(_curatorTest.getThreadMap()) {
-			_curatorTest.getThreadMap().remove(new Integer(_id));
-			if (_curatorTest.getThreadMap().size() == 0)
-				_curatorTest.getThreadMap().notify();
-		}	
-		
-	}
-
-
-	void recordEvent(CuratorEvent event) throws IOException {
-		Double oldctx = (Double)event.getContext();
-		recordTimes(oldctx);
+	ZooKeeperBenchmark getBenchmark() {
+		return _zkBenchmark;
 	}
 	
-	
-	void recordTimes(Double startTime) throws IOException {
-		double endtime = ((double)System.nanoTime() - _curatorTest.getStartTime())/1000000000.0;			
-		_recorder.write(startTime.toString() + " " + Double.toString(endtime) + "\n");
+	void setTest(TestType type) {
+		_type = type;
 	}
-	
-	abstract protected void submit(int n, TestType type) throws Exception;
+
+	abstract protected void submit(int n, TestType type);
+
 	/**
 	 * for synchronous requests, to submit more requests only needs to increase the total 
 	 * number of requests, here n can be an arbitrary number
 	 * for asynchronous requests, to submit more requests means that the client will do
 	 * both submit and wait
 	 * @param n
-	 * @throws Exception
 	 */
-	abstract protected void resubmit(int n) throws Exception;
+	abstract protected void resubmit(int n);
 	
 	abstract protected void finish();
 }

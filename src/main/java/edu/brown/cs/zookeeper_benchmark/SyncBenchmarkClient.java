@@ -1,78 +1,84 @@
 package edu.brown.cs.zookeeper_benchmark;
 
 import java.io.IOException;
-import java.util.Timer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.zookeeper.KeeperException.NoNodeException;
-
-import com.netflix.curator.framework.CuratorFrameworkFactory;
-import com.netflix.curator.retry.RetryNTimes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.TestType;
 
 public class SyncBenchmarkClient extends BenchmarkClient {
 
 	AtomicInteger _totalOps;
-	protected boolean _syncfin;
+	private boolean _syncfin;
+
+	private static final Logger LOG = LoggerFactory.getLogger(SyncBenchmarkClient.class);
+
 	
-	public SyncBenchmarkClient(ZooKeeperBenchmark curatorTest, String host, String namespace,
+	public SyncBenchmarkClient(ZooKeeperBenchmark zkBenchmark, String host, String namespace,
 			int attempts, int id) throws IOException {
-		_curatorTest = curatorTest;
-		_host = host;
-		_client = CuratorFrameworkFactory.builder()
-			.connectString(_host).namespace(namespace)
-			.retryPolicy(new RetryNTimes(Integer.MAX_VALUE,1000))
-			.connectionTimeoutMs(5000).build();
-		_type = TestType.UNDEFINED;
-		_attempts = attempts;
-		_id = id;
-		_path = "/client"+id;
-		_timer = new Timer();
-		_highestN = 0;
-		_highestDeleted = 0;		
+		super(zkBenchmark, host, namespace, attempts, id);
 	}
 	
 	@Override
-	protected void submit(int n, TestType type) throws Exception {
+	protected void submit(int n, TestType type) {
+		try {
+			submitWrapped(n, type);
+		} catch (Exception e) {
+			// What can you do? for some reason
+			// com.netflix.curator.framework.api.Pathable.forPath() throws Exception
+			e.printStackTrace();
+		}
+	}
 		
-		_syncfin = false;		
-		_totalOps = _curatorTest.getCurrentTotalOps();
-		
-		for(int i = 0 ;i < _totalOps.get();i++) {
-			double time = ((double)System.nanoTime() - _curatorTest.getStartTime())/1000000000.0;
+	protected void submitWrapped(int n, TestType type) throws Exception {
+		_syncfin = false;
+		_totalOps = _zkBenchmark.getCurrentTotalOps();
+		byte data[];
+
+		for (int i = 0; i < _totalOps.get(); i++) {
+			double submitTime = ((double)System.nanoTime() - _zkBenchmark.getStartTime())/1000000000.0;
 
 			switch(type) {
 				case READ:
 					_client.getData().forPath(_path);
 					break;
+
 				case SETSINGLE:
-					_client.setData().forPath(_path,new String(_curatorTest.getData() + i).getBytes());
+					data = new String(_zkBenchmark.getData() + i).getBytes();
+					_client.setData().forPath(_path, data);
 					break;
-				case SETMUTI:
+
+				case SETMULTI:
 					try {
-						_client.setData().forPath(_path+"/"+(count%_highestN),new String(_curatorTest.getData() + i).getBytes());
-					} catch(NoNodeException e) {
+						data = new String(_zkBenchmark.getData() + i).getBytes();
+						_client.setData().forPath(_path + "/" + (_count % _highestN), data);
+					} catch (NoNodeException e) {
 						e.printStackTrace();
 					}
 					break;
+
 				case CREATE:
-					_client.create().forPath(_path+"/"+count,new String(_curatorTest.getData() + i).getBytes());
-					_highestN ++;
+					data = new String(_zkBenchmark.getData() + i).getBytes();
+					_client.create().forPath(_path + "/" + _count, data);
+					_highestN++;
 					break;
+
 				case DELETE:
 					try {
-						_client.delete().forPath(_path+"/"+count);
+						_client.delete().forPath(_path + "/" + _count);
 					} catch(NoNodeException e) {
 						e.printStackTrace();
 					}
 			}
 
-			recordTimes(new Double(time));
+			recordElapsedInterval(new Double(submitTime));
+			_count++;
+			_zkBenchmark.incrementFinished();
 
-			count ++;
-			_curatorTest.incrementFinished();
-			if(_syncfin)
+			if (_syncfin)
 				break;
 		}
 		
@@ -88,8 +94,7 @@ public class SyncBenchmarkClient extends BenchmarkClient {
 	 * after finishing any operation.
 	 */
 	@Override
-	protected void resubmit(int n) throws Exception {
+	protected void resubmit(int n) {
 		_totalOps.getAndAdd(n);
 	}
-
 }
