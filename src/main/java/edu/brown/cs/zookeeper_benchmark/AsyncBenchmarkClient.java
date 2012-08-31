@@ -35,11 +35,11 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 		submitRequests(n, type);
 		
 		synchronized (_asyncRunning) {
-			while(_asyncRunning){
+			while (_asyncRunning) {
 				try {
 					_asyncRunning.wait();
 				} catch (InterruptedException e) {
-					LOG.warn("AsyncClient#" + _id + "is interrupted");
+					LOG.warn("AsyncClient#" + _id + " is interrupted " + e);
 				}
 			}
 		}
@@ -55,7 +55,7 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 			// com.netflix.curator.framework.api.Pathable.forPath() throws Exception
 			
 			//just log the error, not sure how to handle this exception correctly
-			LOG.error("Exception when submitting requests:" + e.getMessage());
+			LOG.error("Exception when submitting requests:" + e);
 		}
 	}
 
@@ -94,16 +94,8 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 					_highestDeleted++;
 
 					if (_highestDeleted >= _highestN) {
-						zkAdminCommand("stat");
-							
-						synchronized (_zkBenchmark.getThreadMap()) {
-							_zkBenchmark.getThreadMap().remove(new Integer(_id));
-
-							if (_zkBenchmark.getThreadMap().size() == 0) {
-								_zkBenchmark.getThreadMap().notify();
-							}
-						}
-
+						zkAdminCommand("stat");							
+						_zkBenchmark.notifyFinished(_id);
 						_timer.cancel();
 						_count++;
 						return;

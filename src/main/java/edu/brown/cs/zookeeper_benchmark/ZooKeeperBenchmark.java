@@ -54,13 +54,13 @@ public class ZooKeeperBenchmark {
 		LinkedList<String> serverList = new LinkedList<String>();
 		Iterator<String> serverNames = conf.getKeys("server");
 		
-		while(serverNames.hasNext()) {
+		while (serverNames.hasNext()) {
 			String serverName = serverNames.next();
 			String address = conf.getString(serverName);
 			serverList.add(address);
 		}
 		
-		if(serverList.size() == 0) {
+		if (serverList.size() == 0) {
 			throw new IllegalArgumentException("ZooKeeper server addresses required");
 		}
 		
@@ -78,7 +78,6 @@ public class ZooKeeperBenchmark {
 		LOG.info("benchmark set with: interval:" + _interval + " total number:" + _totalOps +
 				" threshold:" + _lowerbound + " time:" + totaltime + " sync:" + (sync?"SYNC":"ASYNC"));
 
-		
 		_data = "";
 
 		for (int i = 0; i < 20; i++) { // 100 bytes of important data
@@ -106,9 +105,9 @@ public class ZooKeeperBenchmark {
 		 * have already been finished. In this case, the output
 		 * of read test doesn't reflect the actual rate of
 		 * read requests. */
-		//doTest(TestType.READ);
+		doTest(TestType.READ);
 
-		//doTest(TestType.READ); // Do twice to allow for warm-up
+		doTest(TestType.READ); // Do twice to allow for warm-up
 
 		doTest(TestType.SETSINGLE);
 
@@ -136,12 +135,12 @@ public class ZooKeeperBenchmark {
 			tmp.start();
 		}
 
-		while(!_finish) {
+		while (!_finish) {
 			synchronized (_running) {
 				try {
 					_running.wait();
 				} catch (InterruptedException e) {
-					LOG.warn("Benmark main thread is interruptted when waiting:" + e.getMessage());
+					LOG.warn("Benchmark main thread is interrupted while waiting:" + e);
 				}
 			}
 		}
@@ -161,7 +160,7 @@ public class ZooKeeperBenchmark {
 		try {
 			_rateFile = new BufferedWriter(new FileWriter(new File(test+".dat")));
 		} catch(IOException e) {
-			LOG.error("Error when creating output file:" + e.getMessage());
+			LOG.error("Error when creating output file:" + e);
 		}
 		
 		_startCpuTime = System.nanoTime();
@@ -183,9 +182,9 @@ public class ZooKeeperBenchmark {
 		try {
 			_barrier.await();
 		} catch (BrokenBarrierException e) {
-			LOG.warn("Some other client is interrupted, Benchmark main thread is out of sync:" + e.getMessage());
+			LOG.warn("Some other client is interrupted, Benchmark main thread is out of sync:" + e);
 		} catch (InterruptedException e) {
-			LOG.warn("Benchmark main thread is interrupted when waiting on barrier:" + e.getMessage());
+			LOG.warn("Benchmark main thread is interrupted when waiting on barrier:" + e);
 		}		
 		
 		Timer timer = new Timer();
@@ -198,7 +197,7 @@ public class ZooKeeperBenchmark {
 				try {
 					_running.wait();
 				} catch (InterruptedException e) {
-					LOG.warn("Benmark main thread is interruptted when waiting:" + e.getMessage());
+					LOG.warn("Benmark main thread is interruptted when waiting:" + e);
 				}
 			}
 		}
@@ -213,7 +212,7 @@ public class ZooKeeperBenchmark {
 				_rateFile.close();
 			}
 		} catch (IOException e) {
-			LOG.warn("Error when closing output file:" + e.getMessage());
+			LOG.warn("Error when closing output file:" + e);
 		}
 
 		double time = getTime();
@@ -252,10 +251,6 @@ public class ZooKeeperBenchmark {
 		_finishedTotal.incrementAndGet();
 	}
 
-	HashMap<Integer, Thread> getThreadMap() {
-		return _running;
-	}
-
 	CyclicBarrier getBarrier() {
 		return _barrier;
 	}
@@ -279,18 +274,34 @@ public class ZooKeeperBenchmark {
 	long getStartTime() {
 		return _startCpuTime;
 	}
-
-	void testFinish() {
-		_finish = true;
-		_running.notify();
+	
+	void notifyFinished(int id) {
+		synchronized (_running) {
+			_running.remove(new Integer(id));
+			if (_running.size() == 0) {
+				_finish = true;
+				_running.notify();
+			}
+		}
 	}
 	
 	public static void main(String[] args) throws Exception {
 
 		OptionParser parser = new OptionParser();
-		parser.accepts("c", "configuration file (required)").
-		withRequiredArg().ofType(String.class);
 		parser.accepts("help", "print help statement");
+		parser.accepts("c", "configuration file (required)").
+		withRequiredArg().required().ofType(String.class);
+		parser.accepts("i", "rate is measured in each interval").
+		withRequiredArg().ofType(Integer.class);
+		parser.accepts("o", "total number of operations").
+		withRequiredArg().ofType(Integer.class);
+		parser.accepts("l", "lowerbound for the number of operations").
+		withRequiredArg().ofType(Integer.class);
+		parser.accepts("t", "time tests will run for").
+		withRequiredArg().ofType(Integer.class);
+		parser.accepts("s", "sync or async test").
+		withRequiredArg().ofType(Boolean.class);
+		
 		OptionSet options = parser.parse(args);
 
 		if (options.has("help") || !options.has("c")) {
@@ -298,16 +309,34 @@ public class ZooKeeperBenchmark {
 			System.exit(-1);
 		}
 
+		Integer interval = (Integer) options.valueOf("i");
+		Integer totOps = (Integer) options.valueOf("o");
+		Integer lowerbound = (Integer) options.valueOf("l");
+		Integer time = (Integer) options.valueOf("t");
+		Boolean sync = (Boolean) options.valueOf("s");
+		
 		BasicConfigurator.configure();
 
 		String configFile = (String) options.valueOf("c");
 		PropertiesConfiguration conf = new PropertiesConfiguration(configFile);
+		
+		//if there are options from command line, overwrite the conf  
+		if (interval != null)
+			conf.setProperty("interval", interval);
+		if (totOps != null)
+			conf.setProperty("totalOperation", totOps);
+		if (lowerbound != null)
+			conf.setProperty("lowerbound", lowerbound);
+		if (time != null)
+			conf.setProperty("totalTime", time);
+		if (sync != null)
+			conf.setProperty("sync", sync);
 
 		try {
 			ZooKeeperBenchmark benchmark = new ZooKeeperBenchmark(conf);
 			benchmark.runBenchmark();
 		} catch (IOException e) {
-			LOG.error("Failed to start ZooKeeper benchmark.");
+			LOG.error("Failed to start ZooKeeper benchmark." + e);
 		}
 
 		System.exit(0);
@@ -335,7 +364,7 @@ public class ZooKeeperBenchmark {
 						_rateFile.write(msg+"\n");
 					}
 				} catch (IOException e) {
-					LOG.error("Error when writing to output file:" + e.getMessage());
+					LOG.error("Error when writing to output file:" + e);
 				}
 			}
 
