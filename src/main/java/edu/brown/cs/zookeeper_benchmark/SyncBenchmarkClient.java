@@ -29,7 +29,7 @@ public class SyncBenchmarkClient extends BenchmarkClient {
 		} catch (Exception e) {
 			// What can you do? for some reason
 			// com.netflix.curator.framework.api.Pathable.forPath() throws Exception
-			LOG.error("Error when submitting requests:" + e);
+			LOG.error("Error when submitting requests:", e);
 		}
 	}
 		
@@ -56,7 +56,7 @@ public class SyncBenchmarkClient extends BenchmarkClient {
 						data = new String(_zkBenchmark.getData() + i).getBytes();
 						_client.setData().forPath(_path + "/" + (_count % _highestN), data);
 					} catch (NoNodeException e) {
-						LOG.warn("No such node when setting data to mutiple nodes:" + e);
+						LOG.warn("No such node when setting data to mutiple nodes:", e);
 					}
 					break;
 
@@ -70,7 +70,7 @@ public class SyncBenchmarkClient extends BenchmarkClient {
 					try {
 						_client.delete().forPath(_path + "/" + _count);
 					} catch(NoNodeException e) {
-						LOG.warn("No such node when deleting nodes:" + e);
+						LOG.warn("No such node when deleting nodes:", e);
 					}
 			}
 

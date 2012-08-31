@@ -140,7 +140,7 @@ public class ZooKeeperBenchmark {
 				try {
 					_running.wait();
 				} catch (InterruptedException e) {
-					LOG.warn("Benchmark main thread is interrupted while waiting:" + e);
+					LOG.warn("Benchmark main thread is interrupted while waiting:", e);
 				}
 			}
 		}
@@ -160,7 +160,7 @@ public class ZooKeeperBenchmark {
 		try {
 			_rateFile = new BufferedWriter(new FileWriter(new File(test+".dat")));
 		} catch(IOException e) {
-			LOG.error("Error when creating output file:" + e);
+			LOG.error("Error when creating output file:", e);
 		}
 		
 		_startCpuTime = System.nanoTime();
@@ -182,9 +182,9 @@ public class ZooKeeperBenchmark {
 		try {
 			_barrier.await();
 		} catch (BrokenBarrierException e) {
-			LOG.warn("Some other client is interrupted, Benchmark main thread is out of sync:" + e);
+			LOG.warn("Some other client is interrupted, Benchmark main thread is out of sync:", e);
 		} catch (InterruptedException e) {
-			LOG.warn("Benchmark main thread is interrupted when waiting on barrier:" + e);
+			LOG.warn("Benchmark main thread is interrupted when waiting on barrier:", e);
 		}		
 		
 		Timer timer = new Timer();
@@ -197,7 +197,7 @@ public class ZooKeeperBenchmark {
 				try {
 					_running.wait();
 				} catch (InterruptedException e) {
-					LOG.warn("Benmark main thread is interruptted when waiting:" + e);
+					LOG.warn("Benmark main thread is interruptted when waiting:", e);
 				}
 			}
 		}
@@ -212,7 +212,7 @@ public class ZooKeeperBenchmark {
 				_rateFile.close();
 			}
 		} catch (IOException e) {
-			LOG.warn("Error when closing output file:" + e);
+			LOG.warn("Error when closing output file:", e);
 		}
 
 		double time = getTime();
@@ -336,7 +336,7 @@ public class ZooKeeperBenchmark {
 			ZooKeeperBenchmark benchmark = new ZooKeeperBenchmark(conf);
 			benchmark.runBenchmark();
 		} catch (IOException e) {
-			LOG.error("Failed to start ZooKeeper benchmark." + e);
+			LOG.error("Failed to start ZooKeeper benchmark.", e);
 		}
 
 		System.exit(0);
@@ -364,7 +364,7 @@ public class ZooKeeperBenchmark {
 						_rateFile.write(msg+"\n");
 					}
 				} catch (IOException e) {
-					LOG.error("Error when writing to output file:" + e);
+					LOG.error("Error when writing to output file:", e);
 				}
 			}
 

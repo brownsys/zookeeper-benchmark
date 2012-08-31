@@ -39,7 +39,7 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 				try {
 					_asyncRunning.wait();
 				} catch (InterruptedException e) {
-					LOG.warn("AsyncClient#" + _id + " is interrupted " + e);
+					LOG.warn("AsyncClient#" + _id + " is interrupted ", e);
 				}
 			}
 		}
@@ -55,7 +55,7 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 			// com.netflix.curator.framework.api.Pathable.forPath() throws Exception
 			
 			//just log the error, not sure how to handle this exception correctly
-			LOG.error("Exception when submitting requests:" + e);
+			LOG.error("Exception when submitting requests:", e);
 		}
 	}
 

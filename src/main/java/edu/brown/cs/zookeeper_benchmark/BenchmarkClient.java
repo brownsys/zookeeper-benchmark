@@ -78,9 +78,9 @@ public abstract class BenchmarkClient implements Runnable {
 		try {
 			_zkBenchmark.getBarrier().await();
 		} catch (InterruptedException e) {
-			LOG.warn("Client#" + _id + " is interrupted when waiting on barrier:" + e);
+			LOG.warn("Client#" + _id + " is interrupted when waiting on barrier:", e);
 		} catch (BrokenBarrierException e) {
-			LOG.warn("Some other client is interrupted, Client#" + _id + " is out of sync:" + e);
+			LOG.warn("Some other client is interrupted, Client#" + _id + " is out of sync:", e);
 		}
 		
 		_count = 0;
@@ -94,7 +94,7 @@ public abstract class BenchmarkClient implements Runnable {
 				_client.create().forPath(_path, _zkBenchmark.getData().getBytes());
 			}
 		} catch (Exception e) {
-			LOG.error("Error when creating working directory:" + e);
+			LOG.error("Error when creating working directory:", e);
 		}
 
 		// Create a timer to check when we're finished. Schedule it to run
@@ -107,7 +107,7 @@ public abstract class BenchmarkClient implements Runnable {
 			_latenciesFile = new BufferedWriter(new FileWriter(new File(_id +
 					"-" + _type + "_timings.dat")));
 		} catch (IOException e) {
-			LOG.error("Error when creating output file:" + e);
+			LOG.error("Error when creating output file:", e);
 		}
 
 		// Submit the requests!
@@ -123,7 +123,7 @@ public abstract class BenchmarkClient implements Runnable {
 			if (_latenciesFile != null)
 				_latenciesFile.close();				
 		} catch (IOException e) {
-			LOG.warn("Error when closing output file:" + e);
+			LOG.warn("Error when closing output file:", e);
 		}
 
 		LOG.info("client#" + _id + " current test completed, completed " + _count + "requests:");
@@ -182,7 +182,7 @@ public abstract class BenchmarkClient implements Runnable {
 		try {
 			_latenciesFile.write(startTime.toString() + " " + Double.toString(endtime) + "\n");
 		} catch (IOException e) {
-			LOG.error("Exceptions when writing to file:" + e);
+			LOG.error("Exceptions when writing to file:", e);
 		}
 	}
 
@@ -213,9 +213,9 @@ public abstract class BenchmarkClient implements Runnable {
 			os.close();
 			socket.close();
 		} catch (UnknownHostException e) {
-			LOG.error("Error when contacting ZooKeeper server: unknown host:" + e);
+			LOG.error("Error when contacting ZooKeeper server: unknown host:", e);
 		} catch (IOException e) {
-			LOG.error("Error when contacting ZooKeeper server: ioexception:" + e);
+			LOG.error("Error when contacting ZooKeeper server: ioexception:", e);
 		} 
 	}
 
