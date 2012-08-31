@@ -30,14 +30,17 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 		BenchmarkListener listener = new BenchmarkListener(this, _type);
 		listeners.addListener(listener);
 		_currentType = type;
+		_asyncRunning = true;
 		
 		submitRequests(n, type);
 		
 		synchronized (_asyncRunning) {
-			try {
-				_asyncRunning.wait();
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+			while(_asyncRunning){
+				try {
+					_asyncRunning.wait();
+				} catch (InterruptedException e) {
+					LOG.warn("AsyncClient#" + _id + "is interrupted");
+				}
 			}
 		}
 
@@ -50,7 +53,9 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 		} catch (Exception e) {
 			// What can you do? for some reason
 			// com.netflix.curator.framework.api.Pathable.forPath() throws Exception
-			e.printStackTrace();
+			
+			//just log the error, not sure how to handle this exception correctly
+			LOG.error("Exception when submitting requests:" + e.getMessage());
 		}
 	}
 
@@ -112,6 +117,7 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 	@Override
 	protected void finish() {
 		synchronized (_asyncRunning) {
+			_asyncRunning = false;
 			_asyncRunning.notify();
 		}
 	}

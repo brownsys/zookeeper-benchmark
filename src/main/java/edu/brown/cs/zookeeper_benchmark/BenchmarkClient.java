@@ -78,9 +78,9 @@ public abstract class BenchmarkClient implements Runnable {
 		try {
 			_zkBenchmark.getBarrier().await();
 		} catch (InterruptedException e) {
-			e.printStackTrace();
+			LOG.warn("Client#" + _id + " is interrupted when waiting on barrier:" + e.getMessage());
 		} catch (BrokenBarrierException e) {
-			e.printStackTrace();
+			LOG.warn("Some other client is interrupted, Client#" + _id + " is out of sync:" + e.getMessage());
 		}
 		
 		_count = 0;
@@ -94,7 +94,7 @@ public abstract class BenchmarkClient implements Runnable {
 				_client.create().forPath(_path, _zkBenchmark.getData().getBytes());
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			LOG.error("Error when creating working directory:" + e.getMessage());
 		}
 
 		// Create a timer to check when we're finished. Schedule it to run
@@ -107,7 +107,7 @@ public abstract class BenchmarkClient implements Runnable {
 			_latenciesFile = new BufferedWriter(new FileWriter(new File(_id +
 					"-" + _type + "_timings.dat")));
 		} catch (IOException e) {
-			e.printStackTrace();
+			LOG.error("Error when creating output file:" + e.getMessage());
 		}
 
 		// Submit the requests!
@@ -118,18 +118,20 @@ public abstract class BenchmarkClient implements Runnable {
 
 		zkAdminCommand("stat");
 
+
 		try {
-			_latenciesFile.close();
+			if(_latenciesFile != null)
+				_latenciesFile.close();				
 		} catch (IOException e) {
-			e.printStackTrace();
+			LOG.warn("Error when closing output file:" + e.getMessage());
 		}
-		
-		System.err.println(_id + "-i'm done, reqs:" + _count);
+
+		LOG.info("client#" + _id + " current test completed, completed " + _count + "requests:");
 
 		synchronized (_zkBenchmark.getThreadMap()) {
 			_zkBenchmark.getThreadMap().remove(new Integer(_id));
 			if (_zkBenchmark.getThreadMap().size() == 0)
-				_zkBenchmark.getThreadMap().notify();
+				_zkBenchmark.testFinish();
 		}	
 		
 	}
@@ -152,13 +154,13 @@ public abstract class BenchmarkClient implements Runnable {
 		try {
 			deleteChildren();
 		} catch (Exception e) {
-			e.printStackTrace();
+			LOG.error("Exception when deleting old znodes" + e.getMessage());
 		}
 
 		synchronized (_zkBenchmark.getThreadMap()) {
 			_zkBenchmark.getThreadMap().remove(new Integer(_id));
 			if (_zkBenchmark.getThreadMap().size() == 0)
-				_zkBenchmark.getThreadMap().notify();
+				_zkBenchmark.testFinish();
 		}
 	}
 
@@ -188,7 +190,7 @@ public abstract class BenchmarkClient implements Runnable {
 		try {
 			_latenciesFile.write(startTime.toString() + " " + Double.toString(endtime) + "\n");
 		} catch (IOException e) {
-			e.printStackTrace();
+			LOG.error("Exceptions when writing to file:" + e.getMessage());
 		}
 	}
 
@@ -210,19 +212,19 @@ public abstract class BenchmarkClient implements Runnable {
 
 			int len = is.read(b);
 			while (len >= 0) {
-				System.err.println(_id+" " + cmd + " command:\n" + new String(b, 0, len));
+				LOG.info("client#" + _id + " is sending " + cmd +
+						" command:\n" + new String(b, 0, len));
 				len = is.read(b);
 			}
 
-			System.err.println(_id+" " + cmd + " command: done.");
 			is.close();
 			os.close();
 			socket.close();
 		} catch (UnknownHostException e) {
-			e.printStackTrace();
+			LOG.error("Error when contacting ZooKeeper server: unknown host:" + e.getMessage());
 		} catch (IOException e) {
-			e.printStackTrace();
-		}
+			LOG.error("Error when contacting ZooKeeper server: ioexception:" + e.getMessage());
+		} 
 	}
 
 	int getTimeCount() {
