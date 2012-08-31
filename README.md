@@ -34,14 +34,17 @@ command only needs to be executed once per workspace):
 
 	mvn -Declipse.workspace=<path-to-eclipse-workspace> eclipse:configure-workspace
 
-Next, build the libraries and create the Eclipse project files:
+Next, install the libraries and create the Eclipse project files:
 
-	mvn install -DskipTests
-	mvn eclipse:eclipse
+	mvn -DZooKeeperVersion=<version> install -DskipTests
+	mvn -DZooKeeperVersion=<version> eclipse:eclipse
 
-You can now import the project into eclipse using, File > Import > Existing
+You can now import the project into Eclipse using, File > Import > Existing
 Projects into Workspace.
 
+If you wish to view the source or JavaDocs of the benchmark's dependencies, you
+add `-DdownloadSources=true` or `-DdownloadJavadocs=true` when creating the
+Eclipse project files in the final step.
 
 ## Notes
 

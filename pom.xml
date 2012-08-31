@@ -65,6 +65,18 @@
       <version>1.6.4</version>
     </dependency>
 
+    <dependency>
+        <groupId>commons-configuration</groupId>
+        <artifactId>commons-configuration</artifactId>
+        <version>1.8</version>
+    </dependency>
+
+    <dependency>
+        <groupId>net.sf.jopt-simple</groupId>
+        <artifactId>jopt-simple</artifactId>
+        <version>4.3</version>
+    </dependency>
+
   </dependencies>
 
   <build>
