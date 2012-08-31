@@ -1,7 +1,0 @@
-interval=200
-totalOperation=16000
-lowerbound=6000
-totalTime=30000
-sync=true
-server.1=127.0.0.1:2181
-server.2=127.0.0.1:2182
