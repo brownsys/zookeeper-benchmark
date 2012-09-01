@@ -10,21 +10,14 @@ To compile the code, run:
 
 where `<version>` is a ZooKeeper version such as 3.4.3, 3.5.0-pane, etc.
 
-After this, to run the test, run like this:
+After this, run the benchmark using a configuration file:
 
-	java -cp target/lib/*:target/* curatorTest 200 16000 6000 30000 0
+    java -cp target/lib/*:target/* edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark --conf benchmark.conf
 
-Argument 200 means rate is recorded every 200 ms.
-
-Argument 16000 and 6000 means that when the number of unfinished requests below 
-6000, another bunch of requests are submitted such that total number of 
-unfinished requests goes back to 16000.
-
-Argument 30000 means each test would run for 30 seconds.
-
-Argument 0 means test would submit asynchronous requests, 1 is for synchronous 
-requests.
-
+The configuration file provides the list of servers to contact and parameters
+for the benchmark; please see the included example for more details. Many
+configuration paramters can also be set on the command line. A `--help` option
+lists the possible options.
 
 ## Eclipse Development
 

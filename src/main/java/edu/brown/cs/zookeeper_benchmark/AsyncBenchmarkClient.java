@@ -2,8 +2,7 @@ package edu.brown.cs.zookeeper_benchmark;
 
 import java.io.IOException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.Logger;
 
 import com.netflix.curator.framework.api.CuratorListener;
 import com.netflix.curator.framework.listen.ListenerContainer;
@@ -15,7 +14,7 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 	TestType _currentType = TestType.UNDEFINED;
 	private Boolean _asyncRunning;
 
-	private static final Logger LOG = LoggerFactory.getLogger(AsyncBenchmarkClient.class);
+	private static final Logger LOG = Logger.getLogger(AsyncBenchmarkClient.class);
 
 
 	public AsyncBenchmarkClient(ZooKeeperBenchmark zkBenchmark, String host, String namespace,
@@ -39,7 +38,7 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 				try {
 					_asyncRunning.wait();
 				} catch (InterruptedException e) {
-					LOG.warn("AsyncClient#" + _id + " is interrupted ", e);
+					LOG.warn("AsyncClient #" + _id + " was interrupted", e);
 				}
 			}
 		}
@@ -55,7 +54,7 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 			// com.netflix.curator.framework.api.Pathable.forPath() throws Exception
 			
 			//just log the error, not sure how to handle this exception correctly
-			LOG.error("Exception when submitting requests:", e);
+			LOG.error("Exception while submitting requests", e);
 		}
 	}
 
@@ -65,7 +64,7 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 		for (int i = 0; i < n; i++) {
 			double time = ((double)System.nanoTime() - _zkBenchmark.getStartTime())/1000000000.0;
 
-			switch(type) {
+			switch (type) {
 				case READ:
 					_client.getData().inBackground(new Double(time)).forPath(_path);
 					break;

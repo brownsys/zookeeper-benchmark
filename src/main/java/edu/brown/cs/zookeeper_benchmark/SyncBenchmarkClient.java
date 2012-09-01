@@ -4,8 +4,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.zookeeper.KeeperException.NoNodeException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.Logger;
 
 import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.TestType;
 
@@ -14,7 +13,7 @@ public class SyncBenchmarkClient extends BenchmarkClient {
 	AtomicInteger _totalOps;
 	private boolean _syncfin;
 
-	private static final Logger LOG = LoggerFactory.getLogger(SyncBenchmarkClient.class);
+	private static final Logger LOG = Logger.getLogger(SyncBenchmarkClient.class);
 
 	
 	public SyncBenchmarkClient(ZooKeeperBenchmark zkBenchmark, String host, String namespace,
@@ -29,7 +28,7 @@ public class SyncBenchmarkClient extends BenchmarkClient {
 		} catch (Exception e) {
 			// What can you do? for some reason
 			// com.netflix.curator.framework.api.Pathable.forPath() throws Exception
-			LOG.error("Error when submitting requests:", e);
+			LOG.error("Error while submitting requests", e);
 		}
 	}
 		
@@ -41,7 +40,7 @@ public class SyncBenchmarkClient extends BenchmarkClient {
 		for (int i = 0; i < _totalOps.get(); i++) {
 			double submitTime = ((double)System.nanoTime() - _zkBenchmark.getStartTime())/1000000000.0;
 
-			switch(type) {
+			switch (type) {
 				case READ:
 					_client.getData().forPath(_path);
 					break;
@@ -56,7 +55,9 @@ public class SyncBenchmarkClient extends BenchmarkClient {
 						data = new String(_zkBenchmark.getData() + i).getBytes();
 						_client.setData().forPath(_path + "/" + (_count % _highestN), data);
 					} catch (NoNodeException e) {
-						LOG.warn("No such node when setting data to mutiple nodes:", e);
+						LOG.warn("No such node when setting data to mutiple nodes. " +
+					             "_path = " + _path + ", _count = " + _count +
+					             ", _highestN = " + _highestN, e);
 					}
 					break;
 
@@ -69,8 +70,9 @@ public class SyncBenchmarkClient extends BenchmarkClient {
 				case DELETE:
 					try {
 						_client.delete().forPath(_path + "/" + _count);
-					} catch(NoNodeException e) {
-						LOG.warn("No such node when deleting nodes:", e);
+					} catch (NoNodeException e) {
+						LOG.warn("No such node (" + _path + "/" + _count +
+								 ") when deleting nodes", e);
 					}
 			}
 

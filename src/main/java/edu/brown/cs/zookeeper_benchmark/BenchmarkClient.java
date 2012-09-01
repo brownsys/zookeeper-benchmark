@@ -14,8 +14,7 @@ import java.util.TimerTask;
 import java.util.concurrent.BrokenBarrierException;
 
 import org.apache.zookeeper.data.Stat;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.Logger;
 
 import com.netflix.curator.framework.CuratorFramework;
 import com.netflix.curator.framework.CuratorFrameworkFactory;
@@ -41,7 +40,7 @@ public abstract class BenchmarkClient implements Runnable {
 	
 	protected BufferedWriter _latenciesFile;
 	
-	private static final Logger LOG = LoggerFactory.getLogger(BenchmarkClient.class);
+	private static final Logger LOG = Logger.getLogger(BenchmarkClient.class);
 
 
 	public BenchmarkClient(ZooKeeperBenchmark zkBenchmark, String host, String namespace,
@@ -78,9 +77,9 @@ public abstract class BenchmarkClient implements Runnable {
 		try {
 			_zkBenchmark.getBarrier().await();
 		} catch (InterruptedException e) {
-			LOG.warn("Client#" + _id + " is interrupted when waiting on barrier:", e);
+			LOG.warn("Client #" + _id + " was interrupted while waiting on barrier", e);
 		} catch (BrokenBarrierException e) {
-			LOG.warn("Some other client is interrupted, Client#" + _id + " is out of sync:", e);
+			LOG.warn("Some other client was interrupted. Client #" + _id + " is out of sync", e);
 		}
 		
 		_count = 0;
@@ -94,7 +93,7 @@ public abstract class BenchmarkClient implements Runnable {
 				_client.create().forPath(_path, _zkBenchmark.getData().getBytes());
 			}
 		} catch (Exception e) {
-			LOG.error("Error when creating working directory:", e);
+			LOG.error("Error while creating working directory", e);
 		}
 
 		// Create a timer to check when we're finished. Schedule it to run
@@ -107,7 +106,7 @@ public abstract class BenchmarkClient implements Runnable {
 			_latenciesFile = new BufferedWriter(new FileWriter(new File(_id +
 					"-" + _type + "_timings.dat")));
 		} catch (IOException e) {
-			LOG.error("Error when creating output file:", e);
+			LOG.error("Error while creating output file", e);
 		}
 
 		// Submit the requests!
@@ -123,10 +122,11 @@ public abstract class BenchmarkClient implements Runnable {
 			if (_latenciesFile != null)
 				_latenciesFile.close();				
 		} catch (IOException e) {
-			LOG.warn("Error when closing output file:", e);
+			LOG.warn("Error while closing output file:", e);
 		}
 
-		LOG.info("client#" + _id + " current test completed, completed " + _count + "requests:");
+		LOG.info("Client #" + _id + " -- Current test complete. " +
+				 "Completed " + _count + " operations.");
 
 		_zkBenchmark.notifyFinished(_id);
 		
@@ -150,7 +150,7 @@ public abstract class BenchmarkClient implements Runnable {
 		try {
 			deleteChildren();
 		} catch (Exception e) {
-			LOG.error("Exception when deleting old znodes" + e.getMessage());
+			LOG.error("Exception while deleting old znodes", e);
 		}
 
 		_zkBenchmark.notifyFinished(_id);
@@ -182,7 +182,7 @@ public abstract class BenchmarkClient implements Runnable {
 		try {
 			_latenciesFile.write(startTime.toString() + " " + Double.toString(endtime) + "\n");
 		} catch (IOException e) {
-			LOG.error("Exceptions when writing to file:", e);
+			LOG.error("Exceptions while writing to file", e);
 		}
 	}
 
@@ -204,7 +204,7 @@ public abstract class BenchmarkClient implements Runnable {
 
 			int len = is.read(b);
 			while (len >= 0) {
-				LOG.info("client#" + _id + " is sending " + cmd +
+				LOG.info("Client #" + _id + " is sending " + cmd +
 						" command:\n" + new String(b, 0, len));
 				len = is.read(b);
 			}
@@ -213,9 +213,9 @@ public abstract class BenchmarkClient implements Runnable {
 			os.close();
 			socket.close();
 		} catch (UnknownHostException e) {
-			LOG.error("Error when contacting ZooKeeper server: unknown host:", e);
+			LOG.error("Unknown ZooKeeper server: " + _host, e);
 		} catch (IOException e) {
-			LOG.error("Error when contacting ZooKeeper server: ioexception:", e);
+			LOG.error("IOException while contacting ZooKeeper server: " + _host, e);
 		} 
 	}
 

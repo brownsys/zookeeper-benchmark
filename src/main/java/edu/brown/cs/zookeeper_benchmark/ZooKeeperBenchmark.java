@@ -13,16 +13,13 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
-
 import org.apache.commons.configuration.Configuration;
 import org.apache.commons.configuration.PropertiesConfiguration;
-import org.apache.log4j.BasicConfigurator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import org.apache.log4j.Logger;
 
 public class ZooKeeperBenchmark {
 	private int _totalOps; // total operations requested by user
@@ -41,19 +38,18 @@ public class ZooKeeperBenchmark {
 	private String _data;
 	private BufferedWriter _rateFile;
 	private CyclicBarrier _barrier;
-	private Boolean _finish;
+	private Boolean _finished;
 	
 	enum TestType {
 		READ, SETSINGLE, SETMULTI, CREATE, DELETE, CLEANING, UNDEFINED
 	}
 
-	private static final Logger LOG = LoggerFactory.getLogger(ZooKeeperBenchmark.class);
+	private static final Logger LOG = Logger.getLogger(ZooKeeperBenchmark.class);
 	
 	public ZooKeeperBenchmark(Configuration conf) throws IOException {
-		
 		LinkedList<String> serverList = new LinkedList<String>();
 		Iterator<String> serverNames = conf.getKeys("server");
-		
+
 		while (serverNames.hasNext()) {
 			String serverName = serverNames.next();
 			String address = conf.getString(serverName);
@@ -65,7 +61,7 @@ public class ZooKeeperBenchmark {
 		}
 		
 		_interval = conf.getInt("interval");
-		_totalOps = conf.getInt("totalOperation");
+		_totalOps = conf.getInt("totalOperations");
 		_lowerbound = conf.getInt("lowerbound");
 		int totaltime = conf.getInt("totalTime");
 		boolean sync = conf.getBoolean("sync");
@@ -75,8 +71,8 @@ public class ZooKeeperBenchmark {
 		_barrier = new CyclicBarrier(_clients.length+1);
 		_deadline = totaltime / _interval;
 		
-		LOG.info("benchmark set with: interval:" + _interval + " total number:" + _totalOps +
-				" threshold:" + _lowerbound + " time:" + totaltime + " sync:" + (sync?"SYNC":"ASYNC"));
+		LOG.info("benchmark set with: interval: " + _interval + " total number: " + _totalOps +
+				" threshold: " + _lowerbound + " time: " + totaltime + " sync: " + (sync?"SYNC":"ASYNC"));
 
 		_data = "";
 
@@ -135,17 +131,17 @@ public class ZooKeeperBenchmark {
 			tmp.start();
 		}
 
-		while (!_finish) {
+		while (!_finished) {
 			synchronized (_running) {
 				try {
 					_running.wait();
 				} catch (InterruptedException e) {
-					LOG.warn("Benchmark main thread is interrupted while waiting:", e);
+					LOG.warn("Benchmark main thread was interrupted while waiting", e);
 				}
 			}
 		}
 
-		LOG.info("All tests are completed");
+		LOG.info("All tests are complete");
 	}
 	
 	/* This is where each individual test starts */
@@ -155,12 +151,12 @@ public class ZooKeeperBenchmark {
 		_finishedTotal = new AtomicInteger(0);
 		_lastfinished = 0;
 		_currentTotalOps = new AtomicInteger(_totalOps);
-		_finish = false;
+		_finished = false;
 
 		try {
 			_rateFile = new BufferedWriter(new FileWriter(new File(test+".dat")));
-		} catch(IOException e) {
-			LOG.error("Error when creating output file:", e);
+		} catch (IOException e) {
+			LOG.error("Unable to create output file", e);
 		}
 		
 		_startCpuTime = System.nanoTime();
@@ -182,9 +178,9 @@ public class ZooKeeperBenchmark {
 		try {
 			_barrier.await();
 		} catch (BrokenBarrierException e) {
-			LOG.warn("Some other client is interrupted, Benchmark main thread is out of sync:", e);
+			LOG.warn("Some other client was interrupted; Benchmark main thread is out of sync", e);
 		} catch (InterruptedException e) {
-			LOG.warn("Benchmark main thread is interrupted when waiting on barrier:", e);
+			LOG.warn("Benchmark main thread was interrupted while waiting on barrier", e);
 		}		
 		
 		Timer timer = new Timer();
@@ -192,12 +188,12 @@ public class ZooKeeperBenchmark {
 
 		// Wait for the test to finish
 
-		while(!_finish) {
+		while (!_finished) {
 			synchronized (_running) {
 				try {
 					_running.wait();
 				} catch (InterruptedException e) {
-					LOG.warn("Benmark main thread is interruptted when waiting:", e);
+					LOG.warn("Benchmark main thread was interrupted while waiting", e);
 				}
 			}
 		}
@@ -212,12 +208,12 @@ public class ZooKeeperBenchmark {
 				_rateFile.close();
 			}
 		} catch (IOException e) {
-			LOG.warn("Error when closing output file:", e);
+			LOG.warn("Error while closing output file", e);
 		}
 
 		double time = getTime();
-		LOG.info(test + " finished, time elapsed(sec):" + time +
-				" operations:" + _finishedTotal.get() + " avg rate:" +
+		LOG.info(test + " finished, time elapsed (sec): " + time +
+				" operations: " + _finishedTotal.get() + " avg rate: " +
 				_finishedTotal.get()/time);
 	}
 
@@ -279,52 +275,54 @@ public class ZooKeeperBenchmark {
 		synchronized (_running) {
 			_running.remove(new Integer(id));
 			if (_running.size() == 0) {
-				_finish = true;
+				_finished = true;
 				_running.notify();
 			}
 		}
 	}
 	
 	public static void main(String[] args) throws Exception {
-
+		OptionSet options = null;
 		OptionParser parser = new OptionParser();
-		parser.accepts("help", "print help statement");
-		parser.accepts("c", "configuration file (required)").
-		withRequiredArg().required().ofType(String.class);
-		parser.accepts("i", "rate is measured in each interval").
-		withRequiredArg().ofType(Integer.class);
-		parser.accepts("o", "total number of operations").
-		withRequiredArg().ofType(Integer.class);
-		parser.accepts("l", "lowerbound for the number of operations").
-		withRequiredArg().ofType(Integer.class);
-		parser.accepts("t", "time tests will run for").
-		withRequiredArg().ofType(Integer.class);
-		parser.accepts("s", "sync or async test").
-		withRequiredArg().ofType(Boolean.class);
-		
-		OptionSet options = parser.parse(args);
 
-		if (options.has("help") || !options.has("c")) {
+		parser.accepts("help", "print this help statement");
+		parser.accepts("conf", "configuration file (required)").
+			withRequiredArg().ofType(String.class).required();
+		parser.accepts("interval", "interval between rate measurements").
+			withRequiredArg().ofType(Integer.class);
+		parser.accepts("ops", "total number of operations").
+			withRequiredArg().ofType(Integer.class);
+		parser.accepts("lbound",
+			"lowerbound for the number of operations").
+			withRequiredArg().ofType(Integer.class);
+		parser.accepts("time", "time tests will run for (milliseconds)").
+			withRequiredArg().ofType(Integer.class);
+		parser.accepts("sync", "sync or async test").
+			withRequiredArg().ofType(Boolean.class);
+
+		try {
+			options = parser.parse(args);
+		} catch (OptionException e) {
+			System.out.println("\nError parsing arguments.\n");
 			parser.printHelpOn(System.out);
 			System.exit(-1);
 		}
 
-		Integer interval = (Integer) options.valueOf("i");
-		Integer totOps = (Integer) options.valueOf("o");
-		Integer lowerbound = (Integer) options.valueOf("l");
-		Integer time = (Integer) options.valueOf("t");
-		Boolean sync = (Boolean) options.valueOf("s");
+		Integer interval = (Integer) options.valueOf("interval");
+		Integer totOps = (Integer) options.valueOf("ops");
+		Integer lowerbound = (Integer) options.valueOf("lbound");
+		Integer time = (Integer) options.valueOf("time");
+		Boolean sync = (Boolean) options.valueOf("sync");
 		
-		BasicConfigurator.configure();
-
-		String configFile = (String) options.valueOf("c");
+		String configFile = (String) options.valueOf("conf");
+		LOG.info("Loading benchmark from configuration file: " + configFile);
 		PropertiesConfiguration conf = new PropertiesConfiguration(configFile);
-		
-		//if there are options from command line, overwrite the conf  
+
+		// if there are options from command line, override the conf
 		if (interval != null)
 			conf.setProperty("interval", interval);
 		if (totOps != null)
-			conf.setProperty("totalOperation", totOps);
+			conf.setProperty("totalOperations", totOps);
 		if (lowerbound != null)
 			conf.setProperty("lowerbound", lowerbound);
 		if (time != null)
@@ -336,7 +334,7 @@ public class ZooKeeperBenchmark {
 			ZooKeeperBenchmark benchmark = new ZooKeeperBenchmark(conf);
 			benchmark.runBenchmark();
 		} catch (IOException e) {
-			LOG.error("Failed to start ZooKeeper benchmark.", e);
+			LOG.error("Failed to start ZooKeeper benchmark", e);
 		}
 
 		System.exit(0);
@@ -364,7 +362,7 @@ public class ZooKeeperBenchmark {
 						_rateFile.write(msg+"\n");
 					}
 				} catch (IOException e) {
-					LOG.error("Error when writing to output file:", e);
+					LOG.error("Error when writing to output file", e);
 				}
 			}
 
