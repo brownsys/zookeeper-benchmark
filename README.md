@@ -2,13 +2,14 @@
 
 Authors: Chen Liang, Andrew Ferguson, Rodrigo Fonseca
 
-## Build and Installation
+## Build and Usage Instructions
 
 To compile the code, run: 
 
 	mvn -DZooKeeperVersion=<version> package
 
-where `<version>` is a ZooKeeper version such as 3.4.3, 3.5.0-pane, etc.
+where `<version>` is a ZooKeeper version such as 3.4.3, 3.5.0-pane, etc. The
+client code corresponding to the ZooKeeper version will be found using maven.
 
 After this, run the benchmark using a configuration file:
 
@@ -18,6 +19,11 @@ The configuration file provides the list of servers to contact and parameters
 for the benchmark; please see the included example for more details. Many
 configuration paramters can also be set on the command line. A `--help` option
 lists the possible options.
+
+In addition, we have included a script `runBenchmark.sh` which launches runs
+of the example benchmark configuration. It requires one argument, a name for
+the run, and has an optional second argument which, when set to `--gnuplot`,
+plots the output files using the included gnuplot scripts.
 
 ## Eclipse Development
 
