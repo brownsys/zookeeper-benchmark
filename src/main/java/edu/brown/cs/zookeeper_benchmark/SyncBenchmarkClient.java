@@ -71,8 +71,10 @@ public class SyncBenchmarkClient extends BenchmarkClient {
 					try {
 						_client.delete().forPath(_path + "/" + _count);
 					} catch (NoNodeException e) {
-						LOG.warn("No such node (" + _path + "/" + _count +
-								 ") when deleting nodes", e);
+						if (LOG.isDebugEnabled()) {
+							LOG.debug("No such node (" + _path + "/" + _count +
+									") when deleting nodes", e);
+						}
 					}
 			}
 
