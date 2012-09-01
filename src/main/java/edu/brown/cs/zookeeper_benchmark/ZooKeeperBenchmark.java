@@ -352,6 +352,8 @@ public class ZooKeeperBenchmark {
 				return;
 			}
 
+			_currentCpuTime = System.nanoTime();
+
 			if (_rateFile != null) {
 				try {
 					if (finished - _lastfinished > 0) {
