@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd `dirname $0`
+
 RUN_NAME="$1"
 USE_GNUPLOT="$2" # if set to "--gnuplot", plot the output files
 
