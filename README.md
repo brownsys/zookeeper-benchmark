@@ -22,8 +22,9 @@ lists the possible options.
 
 In addition, we have included a script `runBenchmark.sh` which launches runs
 of the example benchmark configuration. It requires one argument, a name for
-the run, and has an optional second argument which, when set to `--gnuplot`,
-plots the output files using the included gnuplot scripts.
+the run. A path to a configuration file can be provided as an optional second
+argument. Finally, if the last argument is set to `--gnuplot`, the script plots
+the rate output files using the included gnuplot script.
 
 ## Eclipse Development
 
