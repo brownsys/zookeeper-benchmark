@@ -25,7 +25,7 @@ cp ../benchmark.conf .
 git log -1 --format="%H" > "zookeeper-benchmark.version"
 
 # Run the benchmark
-java -cp ../target/lib/*:../target/* edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark --conf benchmark.conf 2>&1 | tee "$RUN_NAME.out"
+java -cp ../target/lib/*:../target/* edu.brown.cs.zkbenchmark.ZooKeeperBenchmark --conf benchmark.conf 2>&1 | tee "$RUN_NAME.out"
 
 # Optionally, plot some graphs
 if [ "`which gnuplot`" != "" ] && [ "$USE_GNUPLOT" == "--gnuplot" ]; then

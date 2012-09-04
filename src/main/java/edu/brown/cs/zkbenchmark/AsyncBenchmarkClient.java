@@ -1,4 +1,4 @@
-package edu.brown.cs.zookeeper_benchmark;
+package edu.brown.cs.zkbenchmark;
 
 import java.io.IOException;
 
@@ -7,7 +7,7 @@ import org.apache.log4j.Logger;
 import com.netflix.curator.framework.api.CuratorListener;
 import com.netflix.curator.framework.listen.ListenerContainer;
 
-import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.TestType;
+import edu.brown.cs.zkbenchmark.ZooKeeperBenchmark.TestType;
 
 public class AsyncBenchmarkClient extends BenchmarkClient {
 	

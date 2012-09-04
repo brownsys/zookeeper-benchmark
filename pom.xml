@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>edu.brown.cs</groupId>
-  <artifactId>zookeeper_benchmark</artifactId>
+  <artifactId>zkbenchmark</artifactId>
   <version>0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 

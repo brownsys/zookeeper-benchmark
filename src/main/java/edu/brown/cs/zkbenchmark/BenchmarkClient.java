@@ -1,4 +1,4 @@
-package edu.brown.cs.zookeeper_benchmark;
+package edu.brown.cs.zkbenchmark;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -21,7 +21,7 @@ import com.netflix.curator.framework.CuratorFrameworkFactory;
 import com.netflix.curator.framework.api.CuratorEvent;
 import com.netflix.curator.retry.RetryNTimes;
 
-import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.TestType;
+import edu.brown.cs.zkbenchmark.ZooKeeperBenchmark.TestType;
 
 public abstract class BenchmarkClient implements Runnable {
 	protected ZooKeeperBenchmark _zkBenchmark;

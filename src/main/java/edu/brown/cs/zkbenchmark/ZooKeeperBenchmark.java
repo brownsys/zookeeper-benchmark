@@ -1,4 +1,4 @@
-package edu.brown.cs.zookeeper_benchmark;
+package edu.brown.cs.zkbenchmark;
 
 import java.io.BufferedWriter;
 import java.io.File;

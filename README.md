@@ -13,7 +13,7 @@ client code corresponding to the ZooKeeper version will be found using maven.
 
 After this, run the benchmark using a configuration file:
 
-    java -cp target/lib/*:target/* edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark --conf benchmark.conf
+    java -cp target/lib/*:target/* edu.brown.cs.zkbenchmark.ZooKeeperBenchmark --conf benchmark.conf
 
 The configuration file provides the list of servers to contact and parameters
 for the benchmark; please see the included example for more details. Many

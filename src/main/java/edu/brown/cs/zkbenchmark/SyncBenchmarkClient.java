@@ -1,4 +1,4 @@
-package edu.brown.cs.zookeeper_benchmark;
+package edu.brown.cs.zkbenchmark;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.zookeeper.KeeperException.NoNodeException;
 import org.apache.log4j.Logger;
 
-import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.TestType;
+import edu.brown.cs.zkbenchmark.ZooKeeperBenchmark.TestType;
 
 public class SyncBenchmarkClient extends BenchmarkClient {
 

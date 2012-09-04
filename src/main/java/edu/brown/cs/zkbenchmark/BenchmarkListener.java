@@ -1,11 +1,11 @@
-package edu.brown.cs.zookeeper_benchmark;
+package edu.brown.cs.zkbenchmark;
 
 import com.netflix.curator.framework.CuratorFramework;
 import com.netflix.curator.framework.api.CuratorEvent;
 import com.netflix.curator.framework.api.CuratorEventType;
 import com.netflix.curator.framework.api.CuratorListener;
 
-import edu.brown.cs.zookeeper_benchmark.ZooKeeperBenchmark.TestType;
+import edu.brown.cs.zkbenchmark.ZooKeeperBenchmark.TestType;
 
 class BenchmarkListener implements CuratorListener {
 	private BenchmarkClient _client; // client listener listens for
