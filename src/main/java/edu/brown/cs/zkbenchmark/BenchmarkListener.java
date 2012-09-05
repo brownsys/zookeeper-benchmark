@@ -28,6 +28,7 @@ class BenchmarkListener implements CuratorListener {
 			(type == CuratorEventType.CREATE && _client.getBenchmark().getCurrentTest() == TestType.CREATE)) {
 				_client.getBenchmark().incrementFinished();
 				_client.recordEvent(event);
+				_client.resubmit(1);
 		}
 	}			
 }

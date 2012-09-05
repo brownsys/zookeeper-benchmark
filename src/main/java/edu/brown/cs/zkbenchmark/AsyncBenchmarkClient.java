@@ -110,7 +110,6 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 		synchronized (_asyncRunning) {
 			_asyncRunning.notify();
 			_asyncRunning = false;
-			
 		}
 	}
 
