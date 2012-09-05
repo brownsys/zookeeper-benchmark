@@ -26,7 +26,7 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 	@Override
 	protected void submit(int n, TestType type) {
 		ListenerContainer<CuratorListener> listeners = (ListenerContainer<CuratorListener>)_client.getCuratorListenable();
-		BenchmarkListener listener = new BenchmarkListener(this, _type);
+		BenchmarkListener listener = new BenchmarkListener(this);
 		listeners.addListener(listener);
 		_currentType = type;
 		_asyncRunning = true;

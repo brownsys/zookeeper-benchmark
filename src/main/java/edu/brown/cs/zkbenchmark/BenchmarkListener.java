@@ -9,11 +9,9 @@ import edu.brown.cs.zkbenchmark.ZooKeeperBenchmark.TestType;
 
 class BenchmarkListener implements CuratorListener {
 	private BenchmarkClient _client; // client listener listens for
-	private TestType _type; // type of test we should submit new requests for
 
-	BenchmarkListener(BenchmarkClient client, TestType type) {
+	BenchmarkListener(BenchmarkClient client) {
 		_client = client;
-		_type = type;
 	}
 
 	@Override
