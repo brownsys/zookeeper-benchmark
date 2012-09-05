@@ -2,29 +2,29 @@
 
 Authors: Chen Liang, Andrew Ferguson, Rodrigo Fonseca
 
-## Build and Installation
+## Build and Usage Instructions
 
 To compile the code, run: 
 
 	mvn -DZooKeeperVersion=<version> package
 
-where `<version>` is a ZooKeeper version such as 3.4.3, 3.5.0-pane, etc.
+where `<version>` is a ZooKeeper version such as 3.4.3, 3.5.0-pane, etc. The
+client code corresponding to the ZooKeeper version will be found using maven.
 
-After this, to run the test, run like this:
+After this, run the benchmark using a configuration file:
 
-	java -cp target/lib/*:target/* curatorTest 200 16000 6000 30000 0
+    java -cp target/lib/*:target/* edu.brown.cs.zkbenchmark.ZooKeeperBenchmark --conf benchmark.conf
 
-Argument 200 means rate is recorded every 200 ms.
+The configuration file provides the list of servers to contact and parameters
+for the benchmark; please see the included example for more details. Many
+configuration paramters can also be set on the command line. A `--help` option
+lists the possible options.
 
-Argument 16000 and 6000 means that when the number of unfinished requests below 
-6000, another bunch of requests are submitted such that total number of 
-unfinished requests goes back to 16000.
-
-Argument 30000 means each test would run for 30 seconds.
-
-Argument 0 means test would submit asynchronous requests, 1 is for synchronous 
-requests.
-
+In addition, we have included a script `runBenchmark.sh` which launches runs
+of the example benchmark configuration. It requires one argument, a name for
+the run. A path to a configuration file can be provided as an optional second
+argument. Finally, if the last argument is set to `--gnuplot`, the script plots
+the rate output files using the included gnuplot script.
 
 ## Eclipse Development
 
@@ -34,14 +34,17 @@ command only needs to be executed once per workspace):
 
 	mvn -Declipse.workspace=<path-to-eclipse-workspace> eclipse:configure-workspace
 
-Next, build the libraries and create the Eclipse project files:
+Next, install the libraries and create the Eclipse project files:
 
-	mvn install -DskipTests
-	mvn eclipse:eclipse
+	mvn -DZooKeeperVersion=<version> install -DskipTests
+	mvn -DZooKeeperVersion=<version> eclipse:eclipse
 
-You can now import the project into eclipse using, File > Import > Existing
+You can now import the project into Eclipse using, File > Import > Existing
 Projects into Workspace.
 
+If you wish to view the source or JavaDocs of the benchmark's dependencies, you
+add `-DdownloadSources=true` or `-DdownloadJavadocs=true` when creating the
+Eclipse project files in the final step.
 
 ## Notes
 
