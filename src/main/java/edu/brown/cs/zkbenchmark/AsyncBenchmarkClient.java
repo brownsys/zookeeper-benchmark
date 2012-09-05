@@ -108,8 +108,9 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 	@Override
 	protected void finish() {
 		synchronized (_asyncRunning) {
-			_asyncRunning = false;
 			_asyncRunning.notify();
+			_asyncRunning = false;
+			
 		}
 	}
 
