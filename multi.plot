@@ -39,11 +39,11 @@ replot
 set term pop
 
 set xlabel "Time since start"
-set ylabel "SETMUTI ops per second"
-plot "pre/SETMUTI.dat" title 'Pre' with lines, "post/SETMUTI.dat" title 'Post' with lines
+set ylabel "SETMULTI ops per second"
+plot "pre/SETMULTI.dat" title 'Pre' with lines, "post/SETMULTI.dat" title 'Post' with lines
 
 set size 1.0, 0.6
 set terminal postscript portrait enhanced color dashed lw 1 "Helvetica" 14
-set output "setmuti.ps"
+set output "setmulti.ps"
 replot
 set term pop
