@@ -18,7 +18,10 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
 import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.PropertiesConfiguration;
+import org.apache.log4j.Appender;
+import org.apache.log4j.FileAppender;
 import org.apache.log4j.Logger;
 
 public class ZooKeeperBenchmark {
@@ -30,7 +33,8 @@ public class ZooKeeperBenchmark {
 	private HashMap<Integer, Thread> _running;
 	private AtomicInteger _finishedTotal;
 	private int _lastfinished;
-	private int _deadline;
+	private int _deadline; // in units of "_interval"
+	private long _totalTimeSeconds;
 	private long _lastCpuTime;
 	private long _currentCpuTime;
 	private long _startCpuTime;
@@ -64,6 +68,7 @@ public class ZooKeeperBenchmark {
 		_totalOps = conf.getInt("totalOperations");
 		_lowerbound = conf.getInt("lowerbound");
 		int totaltime = conf.getInt("totalTime");
+		_totalTimeSeconds = Math.round((double) totaltime / 1000.0);
 		boolean sync = conf.getBoolean("sync");
 		
 		_running = new HashMap<Integer,Thread>();		
@@ -101,15 +106,15 @@ public class ZooKeeperBenchmark {
 		 * have already been finished. In this case, the output
 		 * of read test doesn't reflect the actual rate of
 		 * read requests. */
-		doTest(TestType.READ);
+		doTest(TestType.READ, "warm-up");
 
-		doTest(TestType.READ); // Do twice to allow for warm-up
+		doTest(TestType.READ, "znode read"); // Do twice to allow for warm-up
 
-		doTest(TestType.SETSINGLE);
+		doTest(TestType.SETSINGLE, "repeated single-znode write");
 
-		doTest(TestType.CREATE);
+		doTest(TestType.CREATE, "znode create");
 
-		doTest(TestType.SETMULTI);
+		doTest(TestType.SETMULTI, "different znode write");
 
 		/* In the test, node creation and deletion tests are
 		 * done by creating a lot of nodes at first and then
@@ -120,7 +125,7 @@ public class ZooKeeperBenchmark {
 		 * requests would end up not actually deleting anything.
 		 * Though these requests are sent and processed by
 		 * zookeeper server anyway, this could still be an issue.*/
-		doTest(TestType.DELETE);
+		doTest(TestType.DELETE, "znode delete");
 
 		LOG.info("Tests completed, now cleaning-up");
 
@@ -146,12 +151,14 @@ public class ZooKeeperBenchmark {
 	
 	/* This is where each individual test starts */
 	
-	public void doTest(TestType test) {
+	public void doTest(TestType test, String description) {
 		_currentTest = test;
 		_finishedTotal = new AtomicInteger(0);
 		_lastfinished = 0;
 		_currentTotalOps = new AtomicInteger(_totalOps);
 		_finished = false;
+
+		System.out.print("Running " + description + " benchmark for " + _totalTimeSeconds + " seconds... ");
 
 		try {
 			_rateFile = new BufferedWriter(new FileWriter(new File(test+".dat")));
@@ -215,6 +222,8 @@ public class ZooKeeperBenchmark {
 		LOG.info(test + " finished, time elapsed (sec): " + time +
 				" operations: " + _finishedTotal.get() + " avg rate: " +
 				_finishedTotal.get()/time);
+
+		System.out.println("done");
 	}
 
 	/* return the max time consumed by each thread */
@@ -281,10 +290,12 @@ public class ZooKeeperBenchmark {
 		}
 	}
 	
-	public static void main(String[] args) throws Exception {
+	private static PropertiesConfiguration initConfiguration(String[] args) {
 		OptionSet options = null;
 		OptionParser parser = new OptionParser();
+		PropertiesConfiguration conf = null;
 
+		// Setup the option parser
 		parser.accepts("help", "print this help statement");
 		parser.accepts("conf", "configuration file (required)").
 			withRequiredArg().ofType(String.class).required();
@@ -300,11 +311,16 @@ public class ZooKeeperBenchmark {
 		parser.accepts("sync", "sync or async test").
 			withRequiredArg().ofType(Boolean.class);
 
+		// Parse and gather the arguments
 		try {
 			options = parser.parse(args);
 		} catch (OptionException e) {
 			System.out.println("\nError parsing arguments.\n");
-			parser.printHelpOn(System.out);
+			try {
+				parser.printHelpOn(System.out);
+			} catch (IOException e2) {
+				LOG.error("Exception while printing help message", e2);
+			}
 			System.exit(-1);
 		}
 
@@ -314,11 +330,18 @@ public class ZooKeeperBenchmark {
 		Integer time = (Integer) options.valueOf("time");
 		Boolean sync = (Boolean) options.valueOf("sync");
 		
+		// Load and parse the configuration file
 		String configFile = (String) options.valueOf("conf");
 		LOG.info("Loading benchmark from configuration file: " + configFile);
-		PropertiesConfiguration conf = new PropertiesConfiguration(configFile);
 
-		// if there are options from command line, override the conf
+		try {
+			conf = new PropertiesConfiguration(configFile);
+		} catch (ConfigurationException e) {
+			LOG.error("Failed to read configuration file: " + configFile, e);
+			System.exit(-2);
+		}
+
+		// If there are options from command line, override the conf
 		if (interval != null)
 			conf.setProperty("interval", interval);
 		if (totOps != null)
@@ -330,6 +353,22 @@ public class ZooKeeperBenchmark {
 		if (sync != null)
 			conf.setProperty("sync", sync);
 
+		return conf;
+	}
+
+	public static void main(String[] args) {
+
+		// Parse command line and configuration file
+		PropertiesConfiguration conf = initConfiguration(args);
+
+		// Helpful info for users of our default log4j configuration
+		Appender a = Logger.getRootLogger().getAppender("file");
+		if (a != null && a instanceof FileAppender) {
+			FileAppender fa = (FileAppender) a;
+			System.out.println("Detailed logs going to: " + fa.getFile());
+		}
+
+		// Run the benchmark
 		try {
 			ZooKeeperBenchmark benchmark = new ZooKeeperBenchmark(conf);
 			benchmark.runBenchmark();
