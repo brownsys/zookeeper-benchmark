@@ -28,8 +28,10 @@ bound, then new asynchronous requests are made to return to the target level.
 During the benchmark, the current rate of request processing is recorded at
 a configurable intermediate interval to one file per operation: READ.dat,
 SETSINGLE.dat, CREATE.dat, SETMULTI.dat, and DELETE.dat. Additional output is
-recorded to the log file zk-benchmark.log. Some messages are also displayed on
-the console, all of which can be adjusted via the log4j.properties file.
+recorded to the log file zk-benchmark.log, including the output of the ZooKeeper
+`stat` command after every test (`srst` is run before each test to reset the
+statistics). Some messages are also displayed on the console, all of which can
+be adjusted via the log4j.properties file.
 
 ## Build and Usage Instructions
 
