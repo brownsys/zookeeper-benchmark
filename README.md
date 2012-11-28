@@ -50,15 +50,15 @@ configuration parameters can also be set on the command line. A `--help` option
 lists the possible options:
 
 <pre>
-Option (* = required)                   Description                            
----------------------                   -----------                            
-* --conf                                configuration file (required)          
---help                                  print this help statement              
---interval <Integer>                    interval between rate measurements     
---lbound <Integer>                      lowerbound for the number of operations
---ops <Integer>                         total number of operations             
---sync <Boolean>                        sync or async test                     
---time <Integer>                        time tests will run for (milliseconds)
+Option (* = required)           Description                            
+---------------------           -----------                            
+* --conf                        configuration file (required)          
+--help                          print this help statement              
+--interval <Integer>                     interval between rate measurements     
+--lbound <Integer>                       lowerbound for the number of operations
+--ops <Integer>                          total number of operations             
+--sync <Boolean>                         sync or async test                     
+--time <Integer>                         time tests will run for (milliseconds)
 </pre>
 
 In addition, we have included a script `runBenchmark.sh` which launches runs
