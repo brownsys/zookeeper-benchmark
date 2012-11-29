@@ -1,6 +1,9 @@
 # ZooKeeper Benchmark
 
-Authors: Chen Liang, Andrew Ferguson, Rodrigo Fonseca
+Authors: [Chen Liang](http://www.cs.brown.edu/~chen_liang/), [Andrew Ferguson](http://www.cs.brown.edu/~adf/), [Rodrigo Fonseca](http://www.cs.brown.edu/~rfonseca/)
+
+Please contact adf@cs.brown.edu with any questions or comments. Patches and
+additional features are more than welcome!
 
 ## Introduction
 
