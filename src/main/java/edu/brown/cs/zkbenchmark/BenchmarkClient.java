@@ -189,13 +189,14 @@ public abstract class BenchmarkClient implements Runnable {
 	/* Send a command directly to the ZooKeeper server */
 	void zkAdminCommand(String cmd) {
 		String host = _host.split(":")[0];
+    int port = Integer.parseInt(_host.split(":")[1]);
 		Socket socket = null;
 		OutputStream os = null;
 		InputStream is = null;
 		byte[] b = new byte[1000];
 
 		try {
-			socket = new Socket(host, 2181);
+			socket = new Socket(host, port);
 			os = socket.getOutputStream();
 			is = socket.getInputStream();
 
