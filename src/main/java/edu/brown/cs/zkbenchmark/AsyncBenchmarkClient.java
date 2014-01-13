@@ -10,9 +10,12 @@ import com.netflix.curator.framework.listen.ListenerContainer;
 import edu.brown.cs.zkbenchmark.ZooKeeperBenchmark.TestType;
 
 public class AsyncBenchmarkClient extends BenchmarkClient {
+
+	private class Monitor { }
 	
 	TestType _currentType = TestType.UNDEFINED;
-	private Boolean _asyncRunning;
+	private Monitor _monitor = new Monitor();
+	private boolean _asyncRunning;
 
 	private static final Logger LOG = Logger.getLogger(AsyncBenchmarkClient.class);
 
@@ -33,10 +36,10 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 		
 		submitRequests(n, type);
 		
-		synchronized (_asyncRunning) {
+		synchronized (_monitor) {
 			while (_asyncRunning) {
 				try {
-					_asyncRunning.wait();
+					_monitor.wait();
 				} catch (InterruptedException e) {
 					LOG.warn("AsyncClient #" + _id + " was interrupted", e);
 				}
@@ -107,9 +110,9 @@ public class AsyncBenchmarkClient extends BenchmarkClient {
 	
 	@Override
 	protected void finish() {
-		synchronized (_asyncRunning) {
-			_asyncRunning.notify();
+		synchronized (_monitor) {
 			_asyncRunning = false;
+			_monitor.notify();
 		}
 	}
 
