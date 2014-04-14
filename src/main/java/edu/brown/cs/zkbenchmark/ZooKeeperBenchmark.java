@@ -315,7 +315,7 @@ public class ZooKeeperBenchmark {
 		try {
 			options = parser.parse(args);
 		} catch (OptionException e) {
-			System.out.println("\nError parsing arguments.\n");
+			System.out.println("\nError parsing arguments: " + e.getMessage() + "\n");
 			try {
 				parser.printHelpOn(System.out);
 			} catch (IOException e2) {
