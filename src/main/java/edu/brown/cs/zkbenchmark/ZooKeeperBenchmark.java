@@ -38,6 +38,7 @@ public class ZooKeeperBenchmark {
 	private long _lastCpuTime;
 	private long _currentCpuTime;
 	private long _startCpuTime;
+	private int _dataSizeInBytes;
 	private TestType _currentTest;	
 	private String _data;
 	private BufferedWriter _rateFile;
@@ -70,20 +71,16 @@ public class ZooKeeperBenchmark {
 		int totaltime = conf.getInt("totalTime");
 		_totalTimeSeconds = Math.round((double) totaltime / 1000.0);
 		boolean sync = conf.getBoolean("sync");
-		
-		_running = new HashMap<Integer,Thread>();		
+		_dataSizeInBytes = conf.getInt("dataSize", 100);
+		_running = new HashMap<Integer,Thread>();
 		_clients = new BenchmarkClient[serverList.size()];
 		_barrier = new CyclicBarrier(_clients.length+1);
 		_deadline = totaltime / _interval;
 		
 		LOG.info("benchmark set with: interval: " + _interval + " total number: " + _totalOps +
-				" threshold: " + _lowerbound + " time: " + totaltime + " sync: " + (sync?"SYNC":"ASYNC"));
+				" threshold: " + _lowerbound + " time: " + totaltime + " sync: " + (sync?"SYNC":"ASYNC") + " data size: " + _dataSizeInBytes + " bytes");
 
-		_data = "";
-
-		for (int i = 0; i < 20; i++) { // 100 bytes of important data
-			_data += "!!!!!";
-		}
+		_data = genZNodeData(_dataSizeInBytes);
 
 		int avgOps = _totalOps / serverList.size();
 
@@ -95,6 +92,14 @@ public class ZooKeeperBenchmark {
 			}
 		}
 		
+	}
+
+	private String genZNodeData(int len){
+		StringBuilder sb = new StringBuilder(len);
+		for(int i = 0; i < len; i++) {
+			sb.append("!");
+		}
+		return sb.toString();
 	}
 	
 	public void runBenchmark() {
@@ -329,7 +334,7 @@ public class ZooKeeperBenchmark {
 		Integer lowerbound = (Integer) options.valueOf("lbound");
 		Integer time = (Integer) options.valueOf("time");
 		Boolean sync = (Boolean) options.valueOf("sync");
-		
+
 		// Load and parse the configuration file
 		String configFile = (String) options.valueOf("conf");
 		LOG.info("Loading benchmark from configuration file: " + configFile);
